@@ -262,7 +262,7 @@ def main():
     
     # 读取代理链接
     try:
-        with open('sub.txt', 'r', encoding='utf-8') as f:
+        with open('all_configs.txt', 'r', encoding='utf-8') as f:
             links = [line.strip() for line in f if line.strip() and not line.startswith('#')]
     except FileNotFoundError:
         print("错误: 找不到 sub.txt 文件")
