@@ -189,6 +189,7 @@ class FastProxyTester:
                         timeout=aiohttp.ClientTimeout(total=self.timeout),
                         headers={'User-Agent': 'Mozilla/5.0'}
                     ) as response:
+                        print(test_url)
                         if response.status in [200, 204]:
                             latency = (time.time() - start_time) * 1000
                             config.latency = round(latency, 2)
