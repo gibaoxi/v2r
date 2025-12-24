@@ -35,6 +35,8 @@ class FastProxyTester:
         
         # 测试目标（选择响应快的网站）
         self.test_targets = [
+            "https://httpbin.org/ip",
+            "https://api.ipify.org?format=json",
             "http://www.gstatic.com/generate_204",  # Google - 响应快
             "http://connectivitycheck.gstatic.com/generate_204",  # 连通性检查
             "http://cp.cloudflare.com/",  # Cloudflare
