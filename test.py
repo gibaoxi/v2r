@@ -319,7 +319,7 @@ async def main():
     print("=" * 50)
     
     # 配置参数
-    input_file = "working_proxy_test_results.txt"  # 你的代理列表文件
+    input_file = "working_proxy_test_results1.txt"  # 你的代理列表文件
     output_file = "proxy_test_results.txt"
     max_concurrent = 30    # 并发数（可根据网络调整）
     timeout = 6            # 超时时间（秒）
