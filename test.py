@@ -28,13 +28,13 @@ class ProxyConfig:
     error: str = ""
 
 class FastProxyTester:
-    def __init__(self, max_concurrent=30, timeout=15):
+    def __init__(self, max_concurrent=50, timeout=8):
         self.max_concurrent = max_concurrent
         self.timeout = timeout
         self.semaphore = asyncio.Semaphore(max_concurrent)
         
         # 测试目标（选择响应快的网站）
-        self.test_targets = ["http://cp.cloudflare.com/"
+        self.test_targets = ["https://ip.sb/"]
         ]
     
     def parse_proxy_links(self, file_path: str) -> List[ProxyConfig]:
@@ -187,7 +187,6 @@ class FastProxyTester:
                             latency = (time.time() - start_time) * 1000
                             config.latency = round(latency, 2)
                             config.status = "success"
-                            print(test_url)
                         else:
                             config.status = "failed"
                             config.error = f"HTTP {response.status}"
