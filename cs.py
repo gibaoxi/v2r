@@ -3,24 +3,33 @@ import aiohttp
 import time
 import sys
 
-async def test_proxy(session, link):
-    """测试单个代理的延迟"""
+async def test_url_latency(session, proxy_url, target_url="https://github.com"):
+    """测试代理访问URL的延迟"""
     start = time.time()
     try:
-        timeout = aiohttp.ClientTimeout(total=5)  # 5秒超时
-        async with session.get("https://github.com", timeout=timeout) as r:
-            if r.status == 200:
-                # 只读取前100字节，不下载完整内容
-                await r.content.read(100)
-                latency = (time.time() - start) * 1000
-                return (latency, link)
+        # 设置代理
+        proxy = f"http://{proxy_url}" if "://" not in proxy_url else proxy_url
+        
+        timeout = aiohttp.ClientTimeout(total=8)
+        async with session.get(
+            target_url, 
+            proxy=proxy,
+            timeout=timeout,
+            verify_ssl=False
+        ) as response:
+            if response.status == 200:
+                # 读取一小部分内容确认连接成功
+                await response.content.read(1024)
+                latency = (time.time() - start) * 1000  # 毫秒
+                return (latency, proxy_url)
     except asyncio.TimeoutError:
         return None
     except Exception as e:
         return None
 
 async def main():
-    print("开始代理延迟测试...")
+    print("开始URL延迟测试...")
+    print("测试目标: https://github.com")
     
     # 读取代理链接
     try:
@@ -37,10 +46,10 @@ async def main():
     print(f"找到 {len(links)} 个代理链接")
     
     # 测试所有代理
-    connector = aiohttp.TCPConnector(limit=10)  # 限制并发数
+    connector = aiohttp.TCPConnector(limit=5)  # 减少并发数避免被封
     async with aiohttp.ClientSession(connector=connector) as session:
-        tasks = [test_proxy(session, link) for link in links]
-        print("正在测试延迟...")
+        tasks = [test_url_latency(session, link) for link in links]
+        print("正在测试URL访问延迟...")
         results = await asyncio.gather(*tasks)
     
     # 处理结果
@@ -52,13 +61,15 @@ async def main():
     # 写入结果
     with open('res.txt', 'w', encoding='utf-8') as f:
         for latency, link in valid_results:
-            f.write(link + "\n")
+            f.write(f"{link}\n")
     
-    # 显示最快的前5个
+    # 显示结果
     if valid_results:
-        print("\n最快的前5个代理:")
-        for i, (latency, link) in enumerate(valid_results[:5], 1):
-            print(f"{i}. {latency:.0f}ms - {link[:80]}...")
+        print("\nURL延迟测试结果 (从低到高):")
+        for i, (latency, link) in enumerate(valid_results, 1):
+            print(f"{i:2d}. {latency:6.1f}ms - {link}")
+    else:
+        print("没有可用的代理")
 
 if __name__ == "__main__":
     asyncio.run(main())
