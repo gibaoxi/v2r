@@ -40,7 +40,7 @@ jobs:
         echo "运行@文件夹脚本..."
         [ -f "app.py" ] && python app.py || echo "app.py不存在"
         [ -f "sort.py" ] && python sort.py || echo "sort.py不存在"
-        [ -f "best.py" ] && python best.py || echo "best.py不存在"
+        [ -f "best1.py" ] && python best.py || echo "best.py不存在"
 
     - name: Run test script
       run: |
