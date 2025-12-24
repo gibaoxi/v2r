@@ -34,7 +34,7 @@ jobs:
         python sort.py
         python best.py
     - name: speedtest
-      working-directory: 'tester/src'
+      working-directory: './tester/src'
       run: |
         python auto.py
        
