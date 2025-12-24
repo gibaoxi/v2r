@@ -281,6 +281,8 @@ def main():
         print(f"测试 [{i}/{len(links)}]: {link[:60]}...")
         
         latency = tester.test_proxy_latency(link)
+        if latency is not None:
+            results.append((latency, link))
     
     # 按延迟排序
     results.sort(key=lambda x: x[0])
