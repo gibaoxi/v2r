@@ -1,3 +1,4 @@
 https://raw.githubusercontent.com/gibaoxi/V2Ray-Vault/refs/heads/main/data/sub/countries/HK.txt
 https://raw.githubusercontent.com/gibaoxi/V2Ray-Vault/refs/heads/main/data/sub/countries/CN.txt
 https://raw.githubusercontent.com/gibaoxi/V2Ray-Vault/refs/heads/main/data/sub/countries/TW.txt
+https://raw.githubusercontent.com/ripaojiedian/freenode/main/sub
