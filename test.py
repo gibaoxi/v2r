@@ -34,13 +34,7 @@ class FastProxyTester:
         self.semaphore = asyncio.Semaphore(max_concurrent)
         
         # 测试目标（选择响应快的网站）
-        self.test_targets = [
-            "https://httpbin.org/ip",
-            "https://api.ipify.org?format=json",
-            "http://www.gstatic.com/generate_204",  # Google - 响应快
-            "http://connectivitycheck.gstatic.com/generate_204",  # 连通性检查
-            "http://cp.cloudflare.com/",  # Cloudflare
-            "http://1.1.1.1/",  # Cloudflare DNS
+        self.test_targets = ["http://cp.cloudflare.com/"
         ]
     
     def parse_proxy_links(self, file_path: str) -> List[ProxyConfig]:
