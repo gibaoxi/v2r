@@ -28,13 +28,15 @@ class ProxyConfig:
     error: str = ""
 
 class FastProxyTester:
-    def __init__(self, max_concurrent=50, timeout=8):
+    def __init__(self, max_concurrent=30, timeout=18):
         self.max_concurrent = max_concurrent
         self.timeout = timeout
         self.semaphore = asyncio.Semaphore(max_concurrent)
         
         # 测试目标（选择响应快的网站）
-        self.test_targets = ["http://cp.cloudflare.com"]
+        self.test_targets = [
+            "https://httpbin.org/ip",
+            "https://api.ipify.org?format=json"]
     
     def parse_proxy_links(self, file_path: str) -> List[ProxyConfig]:
         """从文件解析代理链接"""
@@ -318,10 +320,10 @@ async def main():
     print("=" * 50)
     
     # 配置参数
-    input_file = "working_proxy_test_results1.txt"  # 你的代理列表文件
+    input_file = "all_configs.txt"  # 你的代理列表文件
     output_file = "proxy_test_results.txt"
     max_concurrent = 30    # 并发数（可根据网络调整）
-    timeout = 6            # 超时时间（秒）
+    timeout = 18            # 超时时间（秒）
     
     # 创建测试器
     tester = FastProxyTester(max_concurrent=max_concurrent, timeout=timeout)
