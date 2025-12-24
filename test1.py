@@ -226,6 +226,7 @@ class FastProxyTester:
                     except Exception as http_error:
                         # HTTP测试失败
                         if not tcp_connected:
+                            print(test_url)
                             config.status = "tcp_http_failed"
                             config.error = f"TCP失败, HTTP错误: {str(http_error)}"
                         else:
