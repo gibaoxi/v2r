@@ -35,7 +35,6 @@ class FastProxyTester:
         
         # 测试目标（选择响应快的网站）
         self.test_targets = ["https://ip.sb/"]
-        ]
     
     def parse_proxy_links(self, file_path: str) -> List[ProxyConfig]:
         """从文件解析代理链接"""
