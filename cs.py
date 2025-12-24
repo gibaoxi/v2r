@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 class V2RayTester:
     def __init__(self):
         self.v2ray_bin = "v2ray"  # v2ray命令行工具
-        self.test_url = "https://ip.sb"
+        self.test_url = "https://www.youtube.com/"
     
     def parse_proxy_link(self, link):
         """解析代理链接为v2ray配置"""
