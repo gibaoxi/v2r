@@ -34,11 +34,7 @@ class FastProxyTester:
         self.semaphore = asyncio.Semaphore(max_concurrent)
         
         # 测试目标（选择响应快的网站）
-        self.test_targets = [                      # 您验证过的最好用的
-            "https://cp.cloudflare.com",                     # HTTPS版本
-            "https://www.cloudflare.com/cdn-cgi/trace",      # Cloudflare跟踪信息
-            "https://1.1.1.1/cdn-cgi/trace"                 # Cloudflare IP直接访问
-]
+        self.test_targets = ["http://cp.cloudflare.com"]
     
     def parse_proxy_links(self, file_path: str) -> List[ProxyConfig]:
         """从文件解析代理链接"""
