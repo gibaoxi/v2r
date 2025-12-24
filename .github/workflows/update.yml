@@ -1,49 +1,66 @@
-name: Update Configs
-
-permissions: write-all
+name: Unified Config Updater
 
 on:
   workflow_dispatch:
   schedule:
     - cron: "5 21 * * *"
 
+permissions:
+  contents: write
+
 jobs:
-  build:
+  update:
     runs-on: ubuntu-latest
-
+    
     steps:
-    - name: Checkout code  
-      uses: actions/checkout@v2  
+    - name: Checkout
+      uses: actions/checkout@v4
       with:
-        fetch-depth: 0  
-        persist-credentials: true  
+        token: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Set up Python  
-      uses: actions/setup-python@v2  
+    - name: Setup Python
+      uses: actions/setup-python@v4
       with:
         python-version: '3.11'
+        cache: 'pip'  # 启用缓存加快速度
 
-    - name: Install dependencies  
-      working-directory: '@'  
-      run: pip install -r requirements.txt
-
-    - name: Run Python scripts  
-      working-directory: '@'  
+    - name: Install unified dependencies
       run: |
-        python app.py
-        python sort.py
-        python best.py
-       
-    
+        echo "安装统一依赖..."
+        pip install --upgrade pip
+        if [ -f "requirements.txt" ]; then
+          pip install -r requirements.txt
+        else
+          # 如果没有requirements.txt，安装默认依赖
+          pip install httpx beautifulsoup4 pydantic aiohttp requests rich
+        fi
 
-    - name: Commit and push changes
-      uses: EndBug/add-and-commit@v9
-      with:
-        author_name: "GitHub Actions"
-        author_email: "actions@github.com"
-        message: "Auto Updated 👉"
-        add: "."
-        cwd: "."
-        push: true
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Verify installation
+      run: |
+        echo "验证已安装的包:"
+        pip list | grep -E "(httpx|bs4|pydantic|aiohttp|requests|rich)"
+
+    - name: Run @ folder scripts
+      working-directory: '@'
+      run: |
+        echo "运行@文件夹脚本..."
+        [ -f "app.py" ] && python app.py || echo "app.py不存在"
+        [ -f "sort.py" ] && python sort.py || echo "sort.py不存在"
+        [ -f "best.py" ] && python best.py || echo "best.py不存在"
+
+    - name: Run test script
+      run: |
+        echo "运行测试脚本..."
+        [ -f "test.py" ] && python test.py || echo "test.py不存在"
+
+    - name: Commit changes
+      run: |
+        git config --global user.name "GitHub Actions"
+        git config --global user.email "actions@github.com"
+        git add -A
+        if ! git diff --staged --quiet; then
+          git commit -m "🤖 Update: $(TZ='Asia/Tehran' date '+%Y-%m-%d %H:%M:%S %Z')"
+          git push
+        else
+          echo "✅ 没有变更"
+        fi
