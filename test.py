@@ -200,9 +200,6 @@ class FastProxyTester:
                     config.error = "TCP连接失败"
                     config.latency = round(tcp_latency, 2)
                     return config
-                
-                config.tcp_connected = True
-                
                 # 第二步：TCP测试成功，进行HTTP访问测试
                 async with aiohttp.ClientSession() as session:
                     # 随机选择一个测试目标
