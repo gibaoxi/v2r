@@ -3,12 +3,36 @@
 #subscription-userinfo: upload=29; download=12; total=10737418240000000; expire=2546249531
 #support-url: https://github.com/liMilCo/V2ray-config
 #profile-web-page-url: https://github.com/liMilCo/V2ray-config
-trojan://cTv.9PDdCt-wybBrG1qlxI5UJuaEj@167.17.185.172:10889?security=tls&amp;insecure=1&amp;headerType=none&amp;type=tcp&amp;allowInsecure=1&amp;sni=web.max.ru#TR%20TROJAN-75%20%7C%20free-nodes
-trojan://44e660b0ee21cf3ac66aee2c08af85d2@112.118.116.8:443?allowInsecure=0&sni=www.nintendogames.net#HK%20TROJAN-129%20%7C%20free-nodes
-trojan://telegram-id-privatevpns@15.236.45.23:22222?security=tls&alpn=http%2F1.1&headerType=none&type=tcp&sni=trojan.burgerip.co.uk#FR%20TROJAN-13%20%7C%20free-nodes
-trojan://OdgHycGphesfLmPMYolUF@172.238.229.254:14051?security=tls&amp;headerType=none&amp;fp=chrome&amp;type=tcp&amp;sni=api.avito.ru#TR%20TROJAN-91%20%7C%20free-nodes
-trojan://ZblhWr0mqMakCPg.N@212.193.18.144:36158?security=tls&amp;sni=ya.ru&amp;allowInsecure=true#TR%20TROJAN-90%20%7C%20free-nodes
-trojan://BxceQaOe@58.152.26.107:443?allowInsecure=1&sni=t.me%2Fripaojiedian#HK%20TROJAN-64%20%7C%20free-nodes
-trojan://BxceQaOe@58.152.25.71:443?allowInsecure=1&sni=t.me%2Fripaojiedian#HK%20TROJAN-65%20%7C%20free-nodes
-trojan://a5inYFE=JGV89+hjxIqgDp1tcWBd6@80.173.230.196:26279?security=tls&amp;sni=io.ozone.ru&amp;allowInsecure=true#TR%20TROJAN-55%20%7C%20free-nodes
-trojan://RPyW62_b9aH.ztJKeArou@83.143.87.9:18581?security=tls&amp;allowInsecure=true#TR%20TROJAN-56%20%7C%20free-nodes
+trojan://3s274vzp-conn-3svv-uru5-hpidnbfn78nu@127.0.0.1:2080?security=tls&type=tcp#This is a free trial project.
+trojan://1b57001bd214304027025a740b6cf1ac@58.152.110.25:443?sni=www.nintendogames.net&peer=www.nintendogames.net&security=tls#HK 🇭🇰 ┇ TROJAN-TCP-TLS - HKT Limited ┇ 58.152.110.25
+trojan://zps7o2n0-79hy-83j8-1140-8kasndnefu47@127.0.0.1:8081?security=tls&type=tcp#</> Collector v5.0
+trojan://3wrtj2ln-di9d-22i5-gz70-fu1l3pkq4v9e@127.0.0.1:8081?security=tls&type=tcp#</> Collector v5.0
+trojan://BxceQaOe@219.79.214.159:443?sni=t.me/ripaojiedian&peer=t.me/ripaojiedian&security=tls#HK 🇭🇰 ┇ TROJAN-TCP-TLS - HKT Limited ┇ 219.79.214.159
+trojan://BxceQaOe@58.152.30.31:443?sni=t.me/ripaojiedian&peer=t.me/ripaojiedian&security=tls#HK 🇭🇰 ┇ TROJAN-TCP-TLS - HKT Limited ┇ 58.152.30.31
+trojan://a213e1a5-3c5a-40f2-b70e-98ffa63ffc8e@green2.cdntencentmusic.com:31102?sni=green2.cdntencentmusic.com&peer=green2.cdntencentmusic.com&security=tls#TW 🇹🇼 ┇ TROJAN-TCP-TLS - Data Communication Business Group ┇ 220.130.58.138
+trojan://vb7jctwt-hrj0-w24h-hfts-w5xmt5ifj2gr@127.0.0.1:2080?security=tls&type=tcp#This is a free trial project.
+trojan://nk8jlmkg-pvbc-nlky-gz9j-l7okvpl49jgz@127.0.0.1:1080?security=tls&type=tcp#🕒 LAST UPDATE: 2025/12/24 | 13:32
+trojan://h1cdkbf9-c8p7-o1n2-w3m7-ihpexqfw10pa@127.0.0.1:2080?security=tls&type=tcp#This is a free trial project.
+trojan://kpa7ntdn-tr32-f36i-a6qi-8e51ar30t0rz@127.0.0.1:8081?security=tls&type=tcp#</> Collector v5.0
+trojan://daav316t-5plu-ay9g-oxe9-ng6ihjzzjurw@127.0.0.1:8080?security=tls&type=tcp#For enhanced GitHub access, visit Argh94 now!
+trojan://BxceQaOe@58.152.26.173:443?sni=t.me/ripaojiedian&peer=t.me/ripaojiedian&security=tls#HK 🇭🇰 ┇ TROJAN-TCP-TLS - HKT Limited ┇ 58.152.26.173
+trojan://ea39fa94f1ee00999337ea1fd3318e69@58.152.110.40:443?sni=www.nintendogames.net&peer=www.nintendogames.net&security=tls#HK 🇭🇰 ┇ TROJAN-TCP-TLS - HKT Limited ┇ 58.152.110.40
+trojan://BxceQaOe@95.40.14.227:1112?sni=t.me/ripaojiedian&peer=t.me/ripaojiedian&security=tls#HK 🇭🇰 ┇ TROJAN-TCP-TLS - AMAZON-02 ┇ 95.40.14.227
+trojan://44e660b0ee21cf3ac66aee2c08af85d2@58.152.110.104:443?sni=www.nintendogames.net&peer=www.nintendogames.net&security=tls#HK 🇭🇰 ┇ TROJAN-TCP-TLS - HKT Limited ┇ 58.152.110.104
+trojan://44e660b0ee21cf3ac66aee2c08af85d2@112.118.116.8:443?sni=www.nintendogames.net&peer=www.nintendogames.net&security=tls#HK 🇭🇰 ┇ TROJAN-TCP-TLS - HKT Limited ┇ 112.118.116.8
+trojan://7367d04e-4c59-4dff-a50e-12e730a09891@155.117.228.70:26193?security=tls#HK 🇭🇰 ┇ TROJAN-TCP-TLS - AKILE LTD ┇ 155.117.228.70
+trojan://BxceQaOe@58.152.25.71:443?sni=t.me/ripaojiedian&peer=t.me/ripaojiedian&security=tls#HK 🇭🇰 ┇ TROJAN-TCP-TLS - HKT Limited ┇ 58.152.25.71
+trojan://BxceQaOe@58.152.26.107:443?security=tls#HK 🇭🇰 ┇ TROJAN-TCP-TLS - HKT Limited ┇ 58.152.26.107
+trojan://fab16fff-d149-417c-bdef-4bfcf2333bbe@hkt.iamnotagoodman.com:443?security=tls#HK 🇭🇰 ┇ TROJAN-TCP-TLS - WAP-AC ┇ 45.149.92.71
+trojan://9rqwnj0r-mnbk-wm8n-elm9-ojh7uqxxpi0g@127.0.0.1:4080?security=tls&type=tcp#「 GitHub Argh94 ☕ 」
+trojan://z36slkwv-18i3-t6hb-orwp-y1egoxpvbq25@127.0.0.1:1080?security=tls&type=tcp#🕒 LAST UPDATE: 2025/12/24 | 13:32
+trojan://4qn8tfzb-rg6h-uhli-uhq0-00ijgzpzai7c@127.0.0.1:8080?security=tls&type=tcp#For enhanced GitHub access, visit Argh94 now!
+trojan://BxceQaOe@58.152.18.95:443?security=tls#HK 🇭🇰 ┇ TROJAN-TCP-TLS - HKT Limited ┇ 58.152.18.95
+trojan://rbhiyjo2-r905-ri1m-nhvg-ekqy5m1wxgk2@127.0.0.1:8080?security=tls&type=tcp#For enhanced GitHub access, visit Argh94 now!
+trojan://vo147qpc-gxhw-d0e3-q04q-kktzbpb29uv8@127.0.0.1:1080?security=tls&type=tcp#🕒 LAST UPDATE: 2025/12/24 | 13:32
+trojan://BxceQaOe@36.156.102.115:26876?sni=36.156.102.115&peer=36.156.102.115&security=tls#CN 🇨🇳 ┇ TROJAN-TCP-TLS - China Mobile communications corporation ┇ 36.156.102.115
+trojan://2cf6d686799e6fa95316394064f26c0a@58.152.110.120:443?sni=www.nintendogames.net&peer=www.nintendogames.net&security=tls#HK 🇭🇰 ┇ TROJAN-TCP-TLS - HKT Limited ┇ 58.152.110.120
+trojan://96983eb4-c8f1-316e-ab00-500014ed3d8b@official.taipeicitygovernment.co.ua:8443?sni=207.148.100.75&peer=207.148.100.75&security=tls#TW 🇹🇼 ┇ TROJAN-TCP-TLS - Data Communication Business Group ┇ 61.228.84.29
+trojan://yryn9b7j-gpk9-zgf0-kya9-m0djb3uku504@127.0.0.1:4080?security=tls&type=tcp#「 GitHub Argh94 ☕ 」
+trojan://3yik5tm5-7vc6-9q6s-r3yc-xqltsoroxsz3@127.0.0.1:4080?security=tls&type=tcp#「 GitHub Argh94 ☕ 」
+trojan://k9EG6P7KcwrNUvxo@zhe01.webflarex.top:38340?sni=yazhou10.dynu.net&peer=yazhou10.dynu.net&security=tls#CN 🇨🇳 ┇ TROJAN-TCP-TLS - China Mobile Communications Group Co., Ltd. ┇ 120.236.197.26

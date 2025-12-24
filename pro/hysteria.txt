@@ -3,3 +3,5 @@
 #subscription-userinfo: upload=29; download=12; total=10737418240000000; expire=2546249531
 #support-url: https://github.com/liMilCo/V2ray-config
 #profile-web-page-url: https://github.com/liMilCo/V2ray-config
+hysteria2://06b2ac52-fcc6-11ec-bb74-f23c9164ca5d@21a3b260-t6pb40-t9byd7-1jfvb.hk1.hyhuawei.com:443?sni=21a3b260-t6pb40-t9byd7-1jfvb.hk1.hyhuawei.com&insecure=1#HK 🇭🇰 ┇ HYSTERIA2-TCP-NTLS - HKT Limited ┇ 220.246.94.129
+hysteria2://bc4d55c1-38df-43e6-8df7-3733e84d9399@alhkfree.mggl.wang:35789?sni=alhkfree.mggl.wang&insecure=0#HK 🇭🇰 ┇ HYSTERIA2-TCP-NTLS - Alibaba US Technology Co., Ltd. ┇ 8.218.45.42
