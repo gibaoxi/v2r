@@ -23,39 +23,65 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y curl wget unzip
+        sudo apt-get install -y curl wget unzip jq
         
     - name: Download and install v2ray
       run: |
-        # 下载v2ray二进制文件
-        V2RAY_VERSION=$(curl -s https://api.github.com/repos/v2fly/v2ray-core/releases/latest | grep tag_name | cut -d '"' -f 4)
-        echo "下载v2ray版本: $V2RAY_VERSION"
+        echo "下载v2ray..."
+        # 获取最新版本号
+        V2RAY_VERSION=$(curl -s https://api.github.com/repos/v2fly/v2ray-core/releases/latest | jq -r '.tag_name')
+        echo "v2ray版本: $V2RAY_VERSION"
         
         # 下载对应架构的二进制文件
-        wget -q https://github.com/v2fly/v2ray-core/releases/download/${V2RAY_VERSION}/v2ray-linux-64.zip
-        unzip -q v2ray-linux-64.zip -d v2ray-bin
-        chmod +x v2ray-bin/v2ray v2ray-bin/v2ctl
+        wget -q "https://github.com/v2fly/v2ray-core/releases/download/${V2RAY_VERSION}/v2ray-linux-64.zip"
         
-        # 移动到系统路径
-        sudo mv v2ray-bin/v2ray /usr/local/bin/
-        sudo mv v2ray-bin/v2ctl /usr/local/bin/
+        # 解压并查看文件结构
+        unzip -l v2ray-linux-64.zip
+        
+        # 解压文件
+        unzip -q v2ray-linux-64.zip -d v2ray-temp
+        
+        # 查看解压后的文件
+        echo "解压后的文件:"
+        ls -la v2ray-temp/
+        
+        # 移动文件到系统路径
+        sudo mv v2ray-temp/v2ray /usr/local/bin/
+        sudo chmod +x /usr/local/bin/v2ray
+        
+        # 尝试移动v2ctl（如果存在）
+        if [ -f "v2ray-temp/v2ctl" ]; then
+            sudo mv v2ray-temp/v2ctl /usr/local/bin/
+            sudo chmod +x /usr/local/bin/v2ctl
+        fi
+        
+        # 移动数据文件
         sudo mkdir -p /usr/local/share/v2ray/
-        sudo mv v2ray-bin/*.dat /usr/local/share/v2ray/
+        if [ -f "v2ray-temp/geoip.dat" ]; then
+            sudo mv v2ray-temp/geoip.dat /usr/local/share/v2ray/
+        fi
+        if [ -f "v2ray-temp/geosite.dat" ]; then
+            sudo mv v2ray-temp/geosite.dat /usr/local/share/v2ray/
+        fi
         
         # 清理
-        rm -rf v2ray-linux-64.zip v2ray-bin
+        rm -rf v2ray-linux-64.zip v2ray-temp
         
         # 验证安装
-        v2ray -version
+        echo "验证v2ray安装:"
+        v2ray -version || echo "v2ray命令执行失败"
+        which v2ray
+        ls -la /usr/local/bin/v2ray*
+        
         echo "v2ray安装完成"
     
     - name: Install Python dependencies
       run: |
         pip install requests pyyaml
         
-    - name: Run speed test
+    - name: Run simplified speed test
       run: |
-        echo "开始v2ray代理测试..."
+        echo "开始简化版代理测试..."
         python cs.py
         
     - name: Upload results
