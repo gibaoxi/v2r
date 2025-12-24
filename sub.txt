@@ -1,8 +1,3 @@
-#profile-title: base64:8J+OgSBGcmVlIEludGVybmV0
-#profile-update-interval: 1
-#subscription-userinfo: upload=29; download=12; total=10737418240000000; expire=2546249531
-#support-url: https://github.com/liMilCo/v2r
-#profile-web-page-url: https://limilco.github.io/v2r/
 vless://8f631f3f-5854-4d77-961a-ad33e10e29bb@89.23.103.60:5443?path=%2Fvless&amp;security=&amp;encryption=none&amp;host=noda3.mcqueenconnection.ru&amp;type=ws#%E6%9C%AA%E7%9F%A5%20VLESS-58%20%7C%20free-nodes
 vless://bef46be4-a5f3-4e4c-b6fb-c4d38b3dba50@141.98.169.96:443?path=%2Fiixmriws&amp;security=tls&amp;encryption=none&amp;type=ws&amp;sni=api.avito.ru#%E6%9C%AA%E7%9F%A5%20VLESS-144%20%7C%20free-nodes
 ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTpyTmE3NTNCY1V1UEJMOFl4WHg5Qng1YjRkZlZGdTQ1UWt6b3J3cVppelRsNkFmM04@103.253.74.94:31348#%E6%9C%AA%E7%9F%A5%20SS-87%20%7C%20free-nodes
