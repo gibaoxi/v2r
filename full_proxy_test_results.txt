@@ -2,30 +2,57 @@
 代理连通性测试报告
 ============================================================
 
-测试时间: 2025-12-24 16:19:00
-总节点数: 131
-可用节点: 4
-失败节点: 127
-成功率: 3.1%
+测试时间: 2025-12-24 17:42:42
+总节点数: 153
+TCP连接成功: 38
+HTTP测试成功: 0
+TCP成功但HTTP失败: 38
+TCP连接失败: 115
+最终成功率: 0.0%
 
-🏆 最快的前10个节点:
- 1.  939.9ms - %E6%96%B0%E5%8A%A0%E5%9D%A12%7C%40ripaojiedian
-    trojan://44e660b0ee21cf3ac66aee2c08af85d2@160.16.136.130:2760/?type=tcp&security=tls&sni=www.nintendogames.net&allowInsecure=1#%E6%96%B0%E5%8A%A0%E5%9D%A12%7C%40ripaojiedian
 
- 2. 1285.4ms - %E9%A6%99%E6%B8%AF3%7C%40ripaojiedian
-    trojan://44e660b0ee21cf3ac66aee2c08af85d2@112.118.116.8:443/?type=tcp&security=tls&sni=www.nintendogames.net#%E9%A6%99%E6%B8%AF3%7C%40ripaojiedian
-
- 3. 1289.9ms - HK 🇭🇰 ┇ TROJAN-TCP-TLS - HKT Limited ┇ 112.118.116.8
-    trojan://44e660b0ee21cf3ac66aee2c08af85d2@112.118.116.8:443?sni=www.nintendogames.net&peer=www.nintendogames.net&security=tls#HK 🇭🇰 ┇ TROJAN-TCP-TLS - HKT Limited ┇ 112.118.116.8
-
- 4. 3365.6ms - HK 🇭🇰 ┇ TROJAN-TCP-TLS - HKT Limited ┇ 58.152.25.71
-    trojan://BxceQaOe@58.152.25.71:443?sni=t.me/ripaojiedian&peer=t.me/ripaojiedian&security=tls#HK 🇭🇰 ┇ TROJAN-TCP-TLS - HKT Limited ┇ 58.152.25.71
-
+============================================================
+TCP成功但HTTP失败的节点:
+============================================================
+vmess://eyJ2IjoiMiIsInBzIjoiSEsgXHVkODNjXHVkZGVkXHVkODNjXHVkZGYwIFx1MjUwNyBWTUVTUy1UQ1AtTlRMUyAtIFBDQ1cgSU1TIEx0ZCBQQ0NXIEJ1c2luZXNzIEludGVybmV0IEFjY2VzcyBcdTI1MDcgMjAyLjg1LjUzLjE3OSIsImFkZCI6InYzNi5oZGFjZC5jb20iLCJwb3J0IjozMDgzNiwiaWQiOiJjYmIzZjg3Ny1kMWZiLTM0NGMtODdhOS1kMTUzYmZmZDU0ODQiLCJhaWQiOjIsInNjeSI6ImF1dG8iLCJuZXQiOiJ0Y3AiLCJ0eXBlIjoibm9uZSIsInBhdGgiOiIvIn0 # 错误: Server disconnected
+ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTo2aFZvd2pjYzgycDZOdTlVdk9YaGhG@39.104.68.204:8443 # 错误: 请求超时
+ss://Y2hhY2hhMjAtaWV0Zjphc2QxMjM0NTY@103.149.182.203:8388 # 错误: 请求超时
+ss://Y2hhY2hhMjAtaWV0Zjphc2QxMjM0NTY@103.149.182.86:8388 # 错误: 请求超时
+vmess://eyJ2IjoiMiIsInBzIjoiSEsgXHVkODNjXHVkZGVkXHVkODNjXHVkZGYwIFx1MjUwNyBWTUVTUy1XUy1UTFMgLSBIb25nIEtvbmcgQ29tbXVuaWNhdGlvbnMgSW50ZXJuYXRpb25hbCBDby4sIExpbWl0ZWQgXHUyNTA3IDE1NC4zOC4xMTYuOCIsImFkZCI6IjE1NC4zOC4xMTYuOCIsInBvcnQiOjQ0MywiaWQiOiI0YmYwNzVmNS00ZDVlLTRkMzktZjVhYi1iMzJhODYyNTBmMGUiLCJhaWQiOjAsInNjeSI6ImF1dG8iLCJuZXQiOiJ3cyIsImhvc3QiOiJoay5uYmVlLnBwLnVhIiwicGF0aCI6Ii9hYSIsInRscyI6InRscyIsInNuaSI6ImhrLm5iZWUucHAudWEifQ # 错误: 400, message='Bad Request', url='socks5://154.38.116.8:443'
+vless://45553a57-d94e-46bd-bea7-306eefab0d58@verahk1.uspn.io:8443?type=tcp&security=none#HK 🇭🇰 ┇ VLESS-TCP-NTLS - Tele Asia Limited ┇ 45.125.67.98 # 错误: 400, message='Bad Request', url='socks5://verahk1.uspn.io:8443'
+vless://9f70b695-3579-438c-a2c7-b248ddd03656@36.50.90.241:47790?type=ws&security=tls&path=/?ed=2560&X@节点狂魔&sni=cmedget.cecd.top#HK 🇭🇰 ┇ VLESS-WS-TLS - IoT Innovation Technologies Company Limited ┇ 36.50.90.241 # 错误: 400, message='Bad Request', url='socks5://36.50.90.241:47790'
+vmess://eyJ2IjoiMiIsInBzIjoiQ04gXHVkODNjXHVkZGU4XHVkODNjXHVkZGYzIFx1MjUwNyBWTUVTUy1UQ1AtTlRMUyAtIENoaW5hIE1vYmlsZSBDb21tdW5pY2F0aW9ucyBHcm91cCBDby4sIEx0ZC4gXHUyNTA3IDE4My4yMzYuNTEuMzYiLCJhZGQiOiIxODMuMjM2LjUxLjM2IiwicG9ydCI6NTkwMDMsImlkIjoiNDE4MDQ4YWYtYTI5My00Yjk5LTliMGMtOThjYTM1ODBkZDI0IiwiYWlkIjowLCJzY3kiOiJhdXRvIiwibmV0IjoidGNwIiwidHlwZSI6Im5vbmUifQ # 错误: 请求超时
+vmess://eyJ2IjoiMiIsInBzIjoiSEsgXHVkODNjXHVkZGVkXHVkODNjXHVkZGYwIFx1MjUwNyBWTUVTUy1UQ1AtTlRMUyAtIEhLVCBMaW1pdGVkIFx1MjUwNyAxMTIuMTIwLjEwNy4yMiIsImFkZCI6InNob3cuYmlsaWJpbGljbG91ZDAxLm5ldCIsInBvcnQiOjUwODgyLCJpZCI6IjAxMDY0OTg3LTlmNTctMzdmNi1hYjFhLTNhYmExNTA2NjY4NiIsImFpZCI6MCwic2N5IjoiYXV0byIsIm5ldCI6InRjcCJ9 # 错误: Server disconnected
+vless://9f70b695-3579-438c-a2c7-b248ddd03656@219.76.13.180:443?type=ws&security=tls&path=/?ed=2560&X@节点狂魔&sni=cmedget.cecd.top#HK 🇭🇰 ┇ VLESS-WS-TLS - HKT Limited ┇ 219.76.13.180 # 错误: 403, message='Forbidden', url='socks5://219.76.13.180:443'
+vmess://eyJ2IjoiMiIsInBzIjoiSEsgXHVkODNjXHVkZGVkXHVkODNjXHVkZGYwIFx1MjUwNyBWTUVTUy1UQ1AtTlRMUyAtIEhLVCBMaW1pdGVkIFx1MjUwNyA0Mi4yLjYuMTY2IiwiYWRkIjoidjEwLmhkYWNkLmNvbSIsInBvcnQiOjMwODA3LCJpZCI6ImNiYjNmODc3LWQxZmItMzQ0Yy04N2E5LWQxNTNiZmZkNTQ4NCIsImFpZCI6Miwic2N5IjoiYXV0byIsIm5ldCI6InRjcCIsInR5cGUiOiJub25lIiwicGF0aCI6Ii8ifQ # 错误: Server disconnected
+vless://9f70b695-3579-438c-a2c7-b248ddd03656@47.242.145.136:8001?type=ws&security=tls&path=/?ed=2560&X@节点狂魔&sni=cmedget.cecd.top#HK 🇭🇰 ┇ VLESS-WS-TLS - Alibaba US Technology Co., Ltd. ┇ 47.242.145.136 # 错误: 400, message='Bad Request', url='socks5://47.242.145.136:8001'
+vmess://eyJ2IjoiMiIsInBzIjoiSEsgXHVkODNjXHVkZGVkXHVkODNjXHVkZGYwIFx1MjUwNyBWTUVTUy1XUy1OVExTIC0gTFVDSURBQ0xPVUQgTElNSVRFRCBcdTI1MDcgNDUuMTM2LjEyLjM3IiwiYWRkIjoiNDUuMTM2LjEyLjM3IiwicG9ydCI6MjA1MjEsImlkIjoiMDkwZDBiZDktZjljNC00YzNiLThhYWUtZmZhNjc4NzY1OTM1IiwiYWlkIjowLCJzY3kiOiJhdXRvIiwibmV0Ijoid3MiLCJwYXRoIjoiLyJ9 # 错误: 404, message='Not Found', url='socks5://45.136.12.37:20521'
+ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNToyYWZiYzk3NDAwY2E3MWM4ZjMzMDZmOTg0M2E2ZTFjMg@216.250.97.118:443 # 错误: 407, message='Proxy Authentication Required', url='socks5://216.250.97.118:443'
+vmess://eyJ2IjoiMiIsInBzIjoiSEsgXHVkODNjXHVkZGVkXHVkODNjXHVkZGYwIFx1MjUwNyBWTUVTUy1XUy1UTFMgLSBBbGliYWJhIFVTIFRlY2hub2xvZ3kgQ28uLCBMdGQuIFx1MjUwNyA0Ny44Ni40LjE3NiIsImFkZCI6ImhrMi5scnpkeC51ayIsInBvcnQiOjQ0MywiaWQiOiJkYjY5ZDViYy1kMzZjLTQ5MDMtZjQ3MS03NGI5OGM1Y2VmZTUiLCJhaWQiOjAsInNjeSI6ImF1dG8iLCJuZXQiOiJ3cyIsImhvc3QiOiJoazIubHJ6ZHgudWsiLCJwYXRoIjoiL3JlZ2lzdGVyIiwidGxzIjoidGxzIiwic25pIjoiaGsyLmxyemR4LnVrIn0 # 错误: Server disconnected
+trojan://BxceQaOe@219.79.214.159:443?sni=t.me%2Fripaojiedian&peer=t.me%2Fripaojiedian&security=tls#HK 🇭🇰 ┇ TROJAN-TCP-TLS - HKT Limited ┇ 219.79.214.159 # 错误: Server disconnected
+vmess://eyJ2IjoiMiIsInBzIjoiSEsgXHVkODNjXHVkZGVkXHVkODNjXHVkZGYwIFx1MjUwNyBWTUVTUy1XUy1OVExTIC0gSEtUIExpbWl0ZWQgXHUyNTA3IDIxOS43OS40OS4xODAiLCJhZGQiOiJkOWJhNjU2ZC10NjZzZzAtdDdtemVjLXlqcTAuaGt0LmdvdG9jaGluYXRvd24ubmV0IiwicG9ydCI6ODAsImlkIjoiMjViMjY5OWEtZTE4ZS0xMWVjLThlNjktZjIzYzkxY2ZiYmM5IiwiYWlkIjoyLCJzY3kiOiJhdXRvIiwibmV0Ijoid3MiLCJ0eXBlIjoiYXV0byIsImhvc3QiOiJicm9hZGNhc3Rsdi5jaGF0LmJpbGliaWxpLmNvbSIsInBhdGgiOiIvIiwic25pIjoiYnJvYWRjYXN0bHYuY2hhdC5iaWxpYmlsaS5jb20ifQ # 错误: 404, message='Not Found', url='socks5://d9ba656d-t66sg0-t7mzec-yjq0.hkt.gotochinatown.net:80'
+vless://e258977b-e413-4718-a3af-02d75492c349@47.57.190.228:8388?type=tcp&security=none&path=/?ed=2560#HK 🇭🇰 ┇ VLESS-TCP-NTLS - Alibaba US Technology Co., Ltd. ┇ 47.57.190.228 # 错误: 400, message='Bad Request', url='socks5://47.57.190.228:8388'
+vless://e258977b-e413-4718-a3af-02d75492c349@47.239.69.137:8440?type=tcp&security=none&path=/?ed=2560#HK 🇭🇰 ┇ VLESS-TCP-NTLS - Alibaba US Technology Co., Ltd. ┇ 47.239.69.137 # 错误: 400, message='Bad Request', url='socks5://47.239.69.137:8440'
+vless://46e274b0-8033-4011-b1a0-9d05c3531a79@hkg.tunnelguard.ru:443?type=xhttp&security=tls&path=/&sni=hkg.tunnelguard.ru&fp=chrome#HK 🇭🇰 ┇ VLESS-XHTTP-TLS - LEASEWEB HONG KONG LIMITED ┇ 27.0.232.191 # 错误: 请求超时
+trojan://BxceQaOe@58.152.26.107:443?sni=t.me/ripaojiedian&peer=t.me/ripaojiedian&security=tls#HK 🇭🇰 ┇ TROJAN-TCP-TLS - HKT Limited ┇ 58.152.26.107 # 错误: Server disconnected
+vmess://eyJ2IjoiMiIsInBzIjoiSEsgXHVkODNjXHVkZGVkXHVkODNjXHVkZGYwIFx1MjUwNyBWTUVTUy1XUy1OVExTIC0gSEtUIExpbWl0ZWQgXHUyNTA3IDIwMy4xOTguMjguMTY0IiwiYWRkIjoiYWZsenp1bC5tZWlxdWFua29uZ2ppYW4uY29tIiwicG9ydCI6NTI1MTMsImlkIjoiMzQyYmFjZmQtMmI4Zi0zZjQ5LWExNmUtNDM5ZGI1YjBiOWQ1IiwiYWlkIjowLCJzY3kiOiJhdXRvIiwibmV0Ijoid3MiLCJwYXRoIjoiLzU2NGRmYTIwLyJ9 # 错误: 404, message='Not Found', url='socks5://aflzzul.meiquankongjian.com:52513'
+ss://YWVzLTI1Ni1nY206MTIz@14.18.106.88:6100 # 错误: 请求超时
+ss://Y2hhY2hhMjAtaWV0Zjphc2QxMjM0NTY@103.149.183.80:8388 # 错误: 请求超时
+vless://3e7f67de-648e-4871-b51a-a225214d41ee@8.218.41.50:443?type=tcp&security=reality&sni=cdn.userway.org&fp=chrome&pbk=TRP10HqKUXEQ3O-cfsq93DycfBmbJe9KM36yvSa8Mmw#HK 🇭🇰 ┇ VLESS-TCP-RLT - Alibaba US Technology Co., Ltd. ┇ 8.218.41.50 # 错误: 400, message='Bad Request', url='socks5://8.218.41.50:443'
+trojan://44e660b0ee21cf3ac66aee2c08af85d2@112.118.116.8:443?sni=www.nintendogames.net&peer=www.nintendogames.net&security=tls#HK 🇭🇰 ┇ TROJAN-TCP-TLS - HKT Limited ┇ 112.118.116.8 # 错误: 400, message='Bad Request', url='socks5://112.118.116.8:443'
+vmess://eyJ2IjoiMiIsInBzIjoiSEsgXHVkODNjXHVkZGVkXHVkODNjXHVkZGYwIFx1MjUwNyBWTUVTUy1UQ1AtTlRMUyAtIEFsaWJhYmEgVVMgVGVjaG5vbG9neSBDby4sIEx0ZC4gXHUyNTA3IDguMjE4LjEwNS4xOTYiLCJhZGQiOiI4LjIxOC4xMDUuMTk2IiwicG9ydCI6NTI3NTIsImlkIjoiOTI1YmRiZjUtNzJiZS00NDM3LWJlYmYtNDQxYzYxMDg5ZjZiIiwiYWlkIjowLCJzY3kiOiJhdXRvIiwibmV0IjoidGNwIiwidHlwZSI6Im5vbmUiLCJwYXRoIjoiLyJ9 # 错误: 请求超时
+ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNToyYmUwYzk1NC00MjkxLTQ1ZWEtYjQ3ZC1jYTcxMzE4MDU1MGI@hk01.x.quickcht3.club:52611 # 错误: 请求超时
+ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTpBUmd2R1p5d0ErZ2FjZ0dWMjZCdm11MDUrd1ptUlcvaitBZFUrWjhCdDQ0PQ@203.23.128.92:990 # 错误: 请求超时
+vless://5c183802-747d-4d2f-a6f1-aff2d5d78401@8.217.36.203:443?type=tcp&security=reality&sni=j.6sc.co&fp=chrome&pbk=DNdTBHyztOVJOBJQX91YXEhNkWbSAntqUoTFBHc6Clw&sid=6ba85179e30d4fc2#HK 🇭🇰 ┇ VLESS-TCP-RLT - Alibaba US Technology Co., Ltd. ┇ 8.217.36.203 # 错误: Server disconnected
+ss://YWVzLTEyOC1nY206NTdiYzBjMDQtODE4NC00OGY1LTkwNmItODk3ZDA5NWVkNDQ1@liubu9.singdns.com:17459 # 错误: 请求超时
+trojan://fab16fff-d149-417c-bdef-4bfcf2333bbe@hkt.iamnotagoodman.com:443?security=tls#HK 🇭🇰 ┇ TROJAN-TCP-TLS - WAP-AC ┇ 45.149.92.71 # 错误: Server disconnected
+ss://YWVzLTI1Ni1jZmI6WG44aktkbURNMDBJZU8lIyQjZkpBTXRzRUFFVU9wSC9ZV1l0WXFERm5UMFNW@216.250.97.82:38388 # 错误: 请求超时
+vmess://eyJ2IjoiMiIsInBzIjoiSEsgXHVkODNjXHVkZGVkXHVkODNjXHVkZGYwIFx1MjUwNyBWTUVTUy1XUy1OVExTIC0gQWxpYmFiYSBVUyBUZWNobm9sb2d5IENvLiwgTHRkLiBcdTI1MDcgNDcuMjQ0LjEyMC4xOTciLCJhZGQiOiI0Ny4yNDQuMTIwLjE5NyIsInBvcnQiOjQ0ODY3LCJpZCI6Ijg0NWU2YjA4LTI5MTktNDI5MC1hZGUwLTVkYzdkY2VhNTljYSIsImFpZCI6MCwic2N5IjoiYXV0byIsIm5ldCI6IndzIiwidHlwZSI6Ii0tLSIsInBhdGgiOiIvYXJraT9lZD0yMDQ4In0 # 错误: 请求超时
+ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTpmOGY3YUN6Y1BLYnNGOHAz@203.23.128.33:990 # 错误: 请求超时
+vmess://eyJ2IjoiMiIsInBzIjoiSEsgXHVkODNjXHVkZGVkXHVkODNjXHVkZGYwIFx1MjUwNyBWTUVTUy1UQ1AtTlRMUyAtIEFsaWJhYmEgVVMgVGVjaG5vbG9neSBDby4sIEx0ZC4gXHUyNTA3IDQ3LjI0Mi4xNDUuMTYwIiwiYWRkIjoiNDcuMjQyLjE0NS4xNjAiLCJwb3J0Ijo0NDQ1NywiaWQiOiI0MDI5MDYwOS0yNzQzLTRkODUtYzljMy00YzcyZGQxNTFiOWYiLCJhaWQiOjAsInNjeSI6ImF1dG8iLCJuZXQiOiJ0Y3AiLCJ0eXBlIjoiaHR0cCIsInBhdGgiOiIvIn0 # 错误: 404, message='Not Found', url='socks5://47.242.145.160:44457'
+ss://Y2hhY2hhMjAtaWV0Zjphc2QxMjM0NTY@103.141.221.88:8388 # 错误: 请求超时
+vless://824dc1b1-e35b-4121-ad73-9acaf13d6410@n1761184282.74qxv.top:443?type=ws&security=tls&path=/824dc1b1-e35b-4121-ad73-9acaf13d6410&sni=n1761184282.74qxv.top&fp=chrome#HK 🇭🇰 ┇ VLESS-WS-TLS - Alibaba US Technology Co., Ltd. ┇ 47.76.27.185 # 错误: 400, message='Bad Request', url='socks5://n1761184282.74qxv.top:443'
 
 ============================================================
 所有可用节点:
 ============================================================
-trojan://44e660b0ee21cf3ac66aee2c08af85d2@160.16.136.130:2760/?type=tcp&security=tls&sni=www.nintendogames.net&allowInsecure=1#%E6%96%B0%E5%8A%A0%E5%9D%A12%7C%40ripaojiedian # 939.9ms
-trojan://44e660b0ee21cf3ac66aee2c08af85d2@112.118.116.8:443/?type=tcp&security=tls&sni=www.nintendogames.net#%E9%A6%99%E6%B8%AF3%7C%40ripaojiedian # 1285.41ms
-trojan://44e660b0ee21cf3ac66aee2c08af85d2@112.118.116.8:443?sni=www.nintendogames.net&peer=www.nintendogames.net&security=tls#HK 🇭🇰 ┇ TROJAN-TCP-TLS - HKT Limited ┇ 112.118.116.8 # 1289.87ms
-trojan://BxceQaOe@58.152.25.71:443?sni=t.me/ripaojiedian&peer=t.me/ripaojiedian&security=tls#HK 🇭🇰 ┇ TROJAN-TCP-TLS - HKT Limited ┇ 58.152.25.71 # 3365.63ms

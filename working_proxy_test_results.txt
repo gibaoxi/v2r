@@ -1,4 +1,0 @@
-trojan://44e660b0ee21cf3ac66aee2c08af85d2@160.16.136.130:2760/?type=tcp&security=tls&sni=www.nintendogames.net&allowInsecure=1#%E6%96%B0%E5%8A%A0%E5%9D%A12%7C%40ripaojiedian # 939.9ms
-trojan://44e660b0ee21cf3ac66aee2c08af85d2@112.118.116.8:443/?type=tcp&security=tls&sni=www.nintendogames.net#%E9%A6%99%E6%B8%AF3%7C%40ripaojiedian # 1285.41ms
-trojan://44e660b0ee21cf3ac66aee2c08af85d2@112.118.116.8:443?sni=www.nintendogames.net&peer=www.nintendogames.net&security=tls#HK 🇭🇰 ┇ TROJAN-TCP-TLS - HKT Limited ┇ 112.118.116.8 # 1289.87ms
-trojan://BxceQaOe@58.152.25.71:443?sni=t.me/ripaojiedian&peer=t.me/ripaojiedian&security=tls#HK 🇭🇰 ┇ TROJAN-TCP-TLS - HKT Limited ┇ 58.152.25.71 # 3365.63ms
