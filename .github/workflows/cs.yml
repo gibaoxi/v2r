@@ -1,0 +1,36 @@
+name: Proxy Speed Test
+
+on:
+  push:
+    branches: [ main, master ]
+  schedule:
+    - cron: '0 */6 * * *'  # 每6小时运行一次
+  workflow_dispatch:  # 手动触发
+
+jobs:
+  speed-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: pip install -r requirements.txt
+    
+    - name: Run speed test
+      run: python cs.py
+    
+    - name: Upload results
+      uses: actions/upload-artifact@v4
+      with:
+        name: speed-test-results
+        path: |
+          res.txt
+          test_log.txt
+        retention-days: 7
