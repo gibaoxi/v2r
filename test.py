@@ -26,15 +26,20 @@ class ProxyConfig:
     latency: float = 0.0
     status: str = "pending"
     error: str = ""
+    tcp_connected: bool = False  # TCP连接状态
 
 class FastProxyTester:
-    def __init__(self, max_concurrent=50, timeout=8):
+    def __init__(self, max_concurrent=50, timeout=8, tcp_timeout=3):
         self.max_concurrent = max_concurrent
         self.timeout = timeout
+        self.tcp_timeout = tcp_timeout  # TCP连接超时时间
         self.semaphore = asyncio.Semaphore(max_concurrent)
         
         # 测试目标（选择响应快的网站）
-        self.test_targets = ["https://ip.sb/"]
+        self.test_targets = [
+            "https://ip.sb/",
+            "https://httpbin.org/ip",
+            "https://api.ipify.org?format=json"
         ]
     
     def parse_proxy_links(self, file_path: str) -> List[ProxyConfig]:
@@ -56,7 +61,7 @@ class FastProxyTester:
             return configs
             
         except Exception as e:
-            print(f"❌ 解析文件失败: {e}")
+            print(f"❌❌ 解析文件失败: {e}")
             return []
     
     def _parse_single_link(self, link: str) -> Optional[ProxyConfig]:
@@ -164,13 +169,42 @@ class FastProxyTester:
         except:
             return None
     
+    async def test_tcp_connectivity(self, config: ProxyConfig) -> bool:
+        """测试TCP连通性"""
+        try:
+            # 异步TCP连接测试
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(config.host, config.port),
+                timeout=self.tcp_timeout
+            )
+            writer.close()
+            await writer.wait_closed()
+            return True
+        except (asyncio.TimeoutError, ConnectionRefusedError, OSError) as e:
+            return False
+        except Exception as e:
+            return False
+    
     async def test_single_proxy(self, config: ProxyConfig) -> ProxyConfig:
         """测试单个代理"""
         async with self.semaphore:
             start_time = time.time()
             
             try:
-                # 使用aiohttp测试代理
+                # 第一步：先进行TCP连接测试
+                tcp_start = time.time()
+                tcp_connected = await self.test_tcp_connectivity(config)
+                tcp_latency = (time.time() - tcp_start) * 1000
+                
+                if not tcp_connected:
+                    config.status = "tcp_failed"
+                    config.error = "TCP连接失败"
+                    config.latency = round(tcp_latency, 2)
+                    return config
+                
+                config.tcp_connected = True
+                
+                # 第二步：TCP测试成功，进行HTTP访问测试
                 async with aiohttp.ClientSession() as session:
                     # 随机选择一个测试目标
                     test_url = random.choice(self.test_targets)
@@ -184,11 +218,11 @@ class FastProxyTester:
                         headers={'User-Agent': 'Mozilla/5.0'}
                     ) as response:
                         if response.status in [200, 204]:
-                            latency = (time.time() - start_time) * 1000
-                            config.latency = round(latency, 2)
+                            total_latency = (time.time() - start_time) * 1000
+                            config.latency = round(total_latency, 2)
                             config.status = "success"
                         else:
-                            config.status = "failed"
+                            config.status = "http_failed"
                             config.error = f"HTTP {response.status}"
                 
             except asyncio.TimeoutError:
@@ -211,8 +245,8 @@ class FastProxyTester:
     
     async def batch_test(self, configs: List[ProxyConfig]) -> List[ProxyConfig]:
         """批量测试代理"""
-        print(f"🚀 开始测试 {len(configs)} 个代理节点...")
-        print(f"⚡ 并发数: {self.max_concurrent}, 超时: {self.timeout}秒")
+        print(f"🚀🚀 开始测试 {len(configs)} 个代理节点...")
+        print(f"⚡⚡ 并发数: {self.max_concurrent}, TCP超时: {self.tcp_timeout}秒, HTTP超时: {self.timeout}秒")
         
         tasks = [self.test_single_proxy(config) for config in configs]
         
@@ -227,7 +261,8 @@ class FastProxyTester:
             # 每完成10个或最后显示进度
             if completed % 10 == 0 or completed == total:
                 success_count = len([c for c in configs if c.status == "success"])
-                print(f"📊 进度: {completed}/{total} | 成功: {success_count}")
+                tcp_success_count = len([c for c in configs if c.tcp_connected])
+                print(f"📊📊 进度: {completed}/{total} | TCP成功: {tcp_success_count} | HTTP成功: {success_count}")
         
         return configs
     
@@ -237,12 +272,18 @@ class FastProxyTester:
         working_configs = [c for c in configs if c.status == "success"]
         working_configs.sort(key=lambda x: x.latency)
         
-        failed_configs = [c for c in configs if c.status != "success"]
+        tcp_success_configs = [c for c in configs if c.tcp_connected and c.status != "success"]
+        failed_configs = [c for c in configs if not c.tcp_connected]
         
         # 保存可用节点
         with open(f"working_{output_file}", 'w', encoding='utf-8') as f:
             for config in working_configs:
                 f.write(f"{config.url} # {config.latency}ms\n")
+        
+        # 保存TCP成功但HTTP失败的节点
+        with open(f"tcp_only_{output_file}", 'w', encoding='utf-8') as f:
+            for config in tcp_success_configs:
+                f.write(f"{config.url} # TCP成功但HTTP失败: {config.error}\n")
         
         # 保存全部结果（含统计）
         with open(f"full_{output_file}", 'w', encoding='utf-8') as f:
@@ -252,15 +293,25 @@ class FastProxyTester:
             
             f.write(f"测试时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write(f"总节点数: {len(configs)}\n")
-            f.write(f"可用节点: {len(working_configs)}\n")
-            f.write(f"失败节点: {len(failed_configs)}\n")
-            f.write(f"成功率: {len(working_configs)/len(configs)*100:.1f}%\n\n")
+            f.write(f"TCP连接成功: {len([c for c in configs if c.tcp_connected])}\n")
+            f.write(f"HTTP测试成功: {len(working_configs)}\n")
+            f.write(f"TCP成功但HTTP失败: {len(tcp_success_configs)}\n")
+            f.write(f"TCP连接失败: {len(failed_configs)}\n")
+            f.write(f"最终成功率: {len(working_configs)/len(configs)*100:.1f}%\n\n")
             
             if working_configs:
-                f.write("🏆 最快的前10个节点:\n")
+                f.write("🏆🏆 最快的前10个节点:\n")
                 for i, config in enumerate(working_configs[:10], 1):
                     f.write(f"{i:2d}. {config.latency:6.1f}ms - {config.name}\n")
                     f.write(f"    {config.url}\n\n")
+            
+            # 显示TCP成功但HTTP失败的节点
+            if tcp_success_configs:
+                f.write("\n" + "=" * 60 + "\n")
+                f.write("TCP成功但HTTP失败的节点:\n")
+                f.write("=" * 60 + "\n")
+                for config in tcp_success_configs:
+                    f.write(f"{config.url} # 错误: {config.error}\n")
             
             f.write("\n" + "=" * 60 + "\n")
             f.write("所有可用节点:\n")
@@ -270,20 +321,24 @@ class FastProxyTester:
         
         print(f"✅ 结果已保存:")
         print(f"   📁 可用节点: working_{output_file}")
+        print(f"   📁 TCP-only: tcp_only_{output_file}")
         print(f"   📊 完整报告: full_{output_file}")
     
     def print_statistics(self, configs: List[ProxyConfig]):
         """打印统计信息"""
         working = [c for c in configs if c.status == "success"]
-        failed = [c for c in configs if c.status != "success"]
+        tcp_success = [c for c in configs if c.tcp_connected]
+        tcp_only = [c for c in configs if c.tcp_connected and c.status != "success"]
+        tcp_failed = [c for c in configs if not c.tcp_connected]
         
         print("\n" + "=" * 60)
-        print("📈 测试统计报告")
+        print("📈📈 测试统计报告")
         print("=" * 60)
         print(f"总节点数: {len(configs)}")
-        print(f"可用节点: {len(working)}")
-        print(f"失败节点: {len(failed)}")
-        print(f"成功率: {len(working)/len(configs)*100:.1f}%")
+        print(f"TCP连接成功: {len(tcp_success)} ({len(tcp_success)/len(configs)*100:.1f}%)")
+        print(f"HTTP测试成功: {len(working)} ({len(working)/len(configs)*100:.1f}%)")
+        print(f"TCP成功但HTTP失败: {len(tcp_only)}")
+        print(f"TCP连接失败: {len(tcp_failed)}")
         
         if working:
             # 延迟统计
@@ -292,7 +347,7 @@ class FastProxyTester:
             min_latency = min(latencies)
             max_latency = max(latencies)
             
-            print(f"\n⏱️ 延迟统计:")
+            print(f"\n⏱⏱⏱️ 延迟统计:")
             print(f"  平均: {avg_latency:.1f}ms")
             print(f"  最低: {min_latency:.1f}ms")
             print(f"  最高: {max_latency:.1f}ms")
@@ -302,35 +357,50 @@ class FastProxyTester:
             for config in working:
                 protocol_stats[config.protocol] = protocol_stats.get(config.protocol, 0) + 1
             
-            print(f"\n📡 协议分布:")
+            print(f"\n📡📡 协议分布:")
             for protocol, count in protocol_stats.items():
                 percentage = count / len(working) * 100
                 print(f"  {protocol.upper():>10}: {count:>3} ({percentage:.1f}%)")
             
             # 显示最快节点
             fastest = sorted(working, key=lambda x: x.latency)[:5]
-            print(f"\n🏆 最快的前5个节点:")
+            print(f"\n🏆🏆 最快的前5个节点:")
             for i, config in enumerate(fastest, 1):
                 print(f"  {i}. {config.latency:5.1f}ms - {config.name}")
+        
+        # 显示TCP连接统计
+        if tcp_only:
+            print(f"\n⚠️⚠️ TCP成功但HTTP失败的节点 ({len(tcp_only)} 个):")
+            error_stats = {}
+            for config in tcp_only:
+                error_stats[config.error] = error_stats.get(config.error, 0) + 1
+            
+            for error, count in error_stats.items():
+                print(f"  {error}: {count} 个")
 
 async def main():
     """主函数"""
-    print("🚀 高速代理连通性测试工具")
+    print("🚀🚀 高速代理连通性测试工具 (增强版 - TCP优先测试)")
     print("=" * 50)
     
     # 配置参数
     input_file = "all_configs.txt"  # 你的代理列表文件
     output_file = "proxy_test_results.txt"
     max_concurrent = 30    # 并发数（可根据网络调整）
-    timeout = 6            # 超时时间（秒）
+    timeout = 6            # HTTP超时时间（秒）
+    tcp_timeout = 3        # TCP连接超时时间（秒）
     
     # 创建测试器
-    tester = FastProxyTester(max_concurrent=max_concurrent, timeout=timeout)
+    tester = FastProxyTester(
+        max_concurrent=max_concurrent, 
+        timeout=timeout, 
+        tcp_timeout=tcp_timeout
+    )
     
     # 解析代理配置
     configs = tester.parse_proxy_links(input_file)
     if not configs:
-        print("❌ 没有找到可用的代理配置")
+        print("❌❌ 没有找到可用的代理配置")
         return
     
     # 开始测试
@@ -346,8 +416,8 @@ async def main():
     
     # 显示总耗时
     total_time = end_time - start_time
-    print(f"\n⏰ 总耗时: {total_time:.1f}秒")
-    print(f"📊 测试速度: {len(configs)/total_time:.1f} 节点/秒")
+    print(f"\n⏰⏰⏰ 总耗时: {total_time:.1f}秒")
+    print(f"📊📊 测试速度: {len(configs)/total_time:.1f} 节点/秒")
 
 if __name__ == "__main__":
     # 运行测试
