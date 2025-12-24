@@ -622,12 +622,16 @@ def gui():
 # ==================================================================================
 
 if __name__ == "__main__":
-
-    if 1 < len(sys.argv) < 3:
-        SRC_CONFIG = sys.argv[1]
+    # 强制使用命令行模式
+    if os.getenv('GITHUB_ACTIONS') or os.getenv('CI'):
+        print("Running in CI environment - CLI mode")
         auto_start = True
-        gui()
+        run_test(SRC_CONFIG)
     else:
+        # 正常GUI模式
+        if 1 < len(sys.argv) < 3:
+            SRC_CONFIG = sys.argv[1]
+            auto_start = True
         gui()
 
 
