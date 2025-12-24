@@ -21,7 +21,7 @@ from v2ray2json import generateConfig  #https://github.com/arminmokri/v2ray2json
 #=======================================================================
 
 XRAY_PATH = "xray_test.exe" #https://github.com/XTLS/Xray-core
-SRC_CONFIG = "https://raw.githubusercontent.com/liMilCo/v2r/main/sub/1.txt"
+SRC_CONFIG = "https://raw.githubusercontent.com/free-nodes/v2rayfree/main/v220251224"
 #SRC_CONFIG = "src.txt"
 
 
@@ -629,5 +629,6 @@ if __name__ == "__main__":
         gui()
     else:
         gui()
+
 
 
