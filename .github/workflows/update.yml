@@ -33,10 +33,6 @@ jobs:
         python app.py
         python sort.py
         python best.py
-    - name: speedtest
-      working-directory: './tester/src'
-      run: |
-        python auto.py --cli
        
     
 
