@@ -1,1 +1,1 @@
-trojan://44e660b0ee21cf3ac66aee2c08af85d2@112.118.116.8:443/?type=tcp&security=tls&sni=www.nintendogames.net#%E9%A6%99%E6%B8%AF3%7C%40ripaojiedian # 1127.82ms
+trojan://44e660b0ee21cf3ac66aee2c08af85d2@160.16.196.59:2890/?type=tcp&security=tls&sni=www.nintendogames.net#%E7%BE%8E%E5%9B%BD%7C%40ripaojiedian # 1840.46ms
