@@ -37,7 +37,6 @@ class FastProxyTester:
         
         # 测试目标（选择响应快的网站）
         self.test_targets = [
-            "https://ip.sb/",
             "https://httpbin.org/ip",
             "https://api.ipify.org?format=json"
         ]
