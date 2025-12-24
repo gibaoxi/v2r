@@ -20,73 +20,58 @@ jobs:
       with:
         python-version: '3.10'
     
-    - name: Install system dependencies
+    - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y curl wget unzip jq
+        sudo apt-get install -y iputils-ping
         
-    - name: Download and install v2ray
+    - name: Create sub.txt if not exists
       run: |
-        echo "下载v2ray..."
-        # 获取最新版本号
-        V2RAY_VERSION=$(curl -s https://api.github.com/repos/v2fly/v2ray-core/releases/latest | jq -r '.tag_name')
-        echo "v2ray版本: $V2RAY_VERSION"
-        
-        # 下载对应架构的二进制文件
-        wget -q "https://github.com/v2fly/v2ray-core/releases/download/${V2RAY_VERSION}/v2ray-linux-64.zip"
-        
-        # 解压并查看文件结构
-        unzip -l v2ray-linux-64.zip
-        
-        # 解压文件
-        unzip -q v2ray-linux-64.zip -d v2ray-temp
-        
-        # 查看解压后的文件
-        echo "解压后的文件:"
-        ls -la v2ray-temp/
-        
-        # 移动文件到系统路径
-        sudo mv v2ray-temp/v2ray /usr/local/bin/
-        sudo chmod +x /usr/local/bin/v2ray
-        
-        # 尝试移动v2ctl（如果存在）
-        if [ -f "v2ray-temp/v2ctl" ]; then
-            sudo mv v2ray-temp/v2ctl /usr/local/bin/
-            sudo chmod +x /usr/local/bin/v2ctl
+        if [ ! -f "sub.txt" ]; then
+          echo "创建 sub.txt 文件..."
+          cat > sub.txt << 'EOF'
+        # 代理链接示例（请替换为真实链接）
+        vmess://ewoidiI6ICIyIiwKInBzIjogInRlc3QiLAoiYWRkIjogImdvb2dsZS5jb20iLAoicG9ydCI6IDQ0MywKImFpZCI6IDAsCiJpZCI6ICIxMjM0NTY3ODkwLWFiY2QtZWZnZy1oaWprLTEyMzQ1Njc4OTAiLAoibmV0IjogInRjcCIsCiJ0eXBlIjogIm5vbmUiLAoiaG9zdCI6ICIiLAoicGF0aCI6ICIiLAoidGxzIjogIiIsCiJzbmkiOiAiIgp9
+        ss://YWVzLTI1Ni1nY206cGFzc3dvcmRAMTQ0LjE2OC4xLjE6ODA4MA==
+        trojan7://cGFzc3dvcmRAMTQ0LjE2OC4xLjE6NDQz
+        EOF
         fi
         
-        # 移动数据文件
-        sudo mkdir -p /usr/local/share/v2ray/
-        if [ -f "v2ray-temp/geoip.dat" ]; then
-            sudo mv v2ray-temp/geoip.dat /usr/local/share/v2ray/
-        fi
-        if [ -f "v2ray-temp/geosite.dat" ]; then
-            sudo mv v2ray-temp/geosite.dat /usr/local/share/v2ray/
-        fi
-        
-        # 清理
-        rm -rf v2ray-linux-64.zip v2ray-temp
-        
-        # 验证安装
-        echo "验证v2ray安装:"
-        v2ray -version || echo "v2ray命令执行失败"
-        which v2ray
-        ls -la /usr/local/bin/v2ray*
-        
-        echo "v2ray安装完成"
+        echo "当前目录文件:"
+        ls -la
+        echo "sub.txt 内容:"
+        cat sub.txt
     
-    - name: Install Python dependencies
+    - name: Run speed test
       run: |
-        pip install requests pyyaml
-        
-    - name: Run simplified speed test
-      run: |
-        echo "开始简化版代理测试..."
+        echo "开始代理延迟测试..."
         python cs.py
         
-    - name: Upload results
+        echo "测试完成，查看结果文件:"
+        ls -la res.txt
+        echo "res.txt 内容:"
+        cat res.txt || echo "res.txt 文件为空或不存在"
+    
+    - name: Save results to repository
+      run: |
+        # 设置git配置
+        git config --global user.name "GitHub Actions"
+        git config --global user.email "actions@github.com"
+        
+        # 添加结果文件
+        git add res.txt
+        
+        # 提交更改
+        git commit -m "自动更新代理测试结果 $(date +'%Y-%m-%d %H:%M:%S')" || echo "无变更"
+        
+        # 推送更改
+        git push
+    
+    - name: Upload results as artifact
       uses: actions/upload-artifact@v4
       with:
         name: speed-test-results
-        path: res.txt
+        path: |
+          res.txt
+          sub.txt
         retention-days: 7
