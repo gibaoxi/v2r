@@ -23,24 +23,41 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y curl jq netcat-openbsd
-    
-    - name: Install v2ray-core
+        sudo apt-get install -y curl wget unzip
+        
+    - name: Download and install v2ray
       run: |
-        # 安装v2ray
-        bash <(curl -L https://raw.githubusercontent.com/v2fly/fhs-install-v2ray/master/install-release.sh)
+        # 下载v2ray二进制文件
+        V2RAY_VERSION=$(curl -s https://api.github.com/repos/v2fly/v2ray-core/releases/latest | grep tag_name | cut -d '"' -f 4)
+        echo "下载v2ray版本: $V2RAY_VERSION"
+        
+        # 下载对应架构的二进制文件
+        wget -q https://github.com/v2fly/v2ray-core/releases/download/${V2RAY_VERSION}/v2ray-linux-64.zip
+        unzip -q v2ray-linux-64.zip -d v2ray-bin
+        chmod +x v2ray-bin/v2ray v2ray-bin/v2ctl
+        
+        # 移动到系统路径
+        sudo mv v2ray-bin/v2ray /usr/local/bin/
+        sudo mv v2ray-bin/v2ctl /usr/local/bin/
+        sudo mkdir -p /usr/local/share/v2ray/
+        sudo mv v2ray-bin/*.dat /usr/local/share/v2ray/
+        
+        # 清理
+        rm -rf v2ray-linux-64.zip v2ray-bin
+        
         # 验证安装
         v2ray -version
+        echo "v2ray安装完成"
     
     - name: Install Python dependencies
       run: |
-        pip install -r requirements.txt
-    
+        pip install requests pyyaml
+        
     - name: Run speed test
       run: |
         echo "开始v2ray代理测试..."
         python cs.py
-    
+        
     - name: Upload results
       uses: actions/upload-artifact@v4
       with:
