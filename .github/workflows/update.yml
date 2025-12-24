@@ -34,12 +34,6 @@ jobs:
           # 如果没有requirements.txt，安装默认依赖
           pip install httpx beautifulsoup4 pydantic aiohttp requests rich
         fi
-
-    - name: Verify installation
-      run: |
-        echo "验证已安装的包:"
-        pip list | grep -E "(httpx|bs4|pydantic|aiohttp|requests|rich)"
-
     - name: Run @ folder scripts
       working-directory: '@'
       run: |
