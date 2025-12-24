@@ -38,8 +38,7 @@ class FastProxyTester:
         
         # 测试目标（选择响应快的网站）
         self.test_targets = [
-            "https://httpbin.org/ip",
-            "https://api.ipify.org?format=json"
+            "http://cp.cloudflare.com"
         ]
     
     def parse_proxy_links(self, file_path: str) -> List[ProxyConfig]:
