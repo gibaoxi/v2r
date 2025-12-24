@@ -29,7 +29,7 @@ class ProxyConfig:
     tcp_connected: bool = False  # TCP连接状态
 
 class FastProxyTester:
-    def __init__(self, max_concurrent=50, timeout=8, tcp_timeout=3):
+    def __init__(self, max_concurrent=50, timeout=8, tcp_timeout=8):
         self.max_concurrent = max_concurrent
         self.timeout = timeout
         self.tcp_timeout = tcp_timeout  # TCP连接超时时间
