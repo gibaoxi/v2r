@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 class V2RayTester:
     def __init__(self):
         self.v2ray_bin = "v2ray"  # v2ray命令行工具
-        self.test_url = "https://github.com"
+        self.test_url = "https://ip.sb"
     
     def parse_proxy_link(self, link):
         """解析代理链接为v2ray配置"""
@@ -281,12 +281,6 @@ def main():
         print(f"测试 [{i}/{len(links)}]: {link[:60]}...")
         
         latency = tester.test_proxy_latency(link)
-        
-        if latency is not None:
-            results.append((latency, link))
-            print(f"  ✓ 可用 - 延迟: {latency:.1f}ms")
-        else:
-            print("  ✗ 不可用")
     
     # 按延迟排序
     results.sort(key=lambda x: x[0])
