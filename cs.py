@@ -200,7 +200,7 @@ class NodeConnectivityTester:
         results = []
         
         # 逐个测试（避免并发过多）
-        for i, node in enumerate(nodes[:15], 1):  # 限制测试数量
+        for i, node in enumerate(nodes, 1):  # 限制测试数量
             result = self.test_single_node(node, i)
             results.append(result)
             
