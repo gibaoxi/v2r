@@ -1,2 +1,2 @@
-#https://raw.githubusercontent.com/gibaoxi/V2Ray-Vault/refs/heads/main/data/sub/countries/hk.txt
+https://raw.githubusercontent.com/gibaoxi/V2Ray-Vault/refs/heads/main/data/sub/countries/hk.txt
 https://raw.githubusercontent.com/ripaojiedian/freenode/main/sub
