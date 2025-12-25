@@ -1,302 +1,284 @@
-import subprocess
-import json
-import time
+#!/usr/bin/env python3
 import os
-import tempfile
-import base64
+import json
 import re
-from urllib.parse import urlparse
+import base64
+import time
+import socket
+from urllib.parse import urlparse, parse_qs
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-class V2RayTester:
+class GitHubNodeTester:
     def __init__(self):
-        self.v2ray_bin = "v2ray"  # v2ray命令行工具
-        self.test_url = "https://github.com/"
+        self.sub_file = "sub.txt"  # 同文件夹下的文件
+        self.timeout = 8
+        self.max_workers = 3  # GitHub Actions限制并发数
+        self.results = []
     
-    def parse_proxy_link(self, link):
-        """解析代理链接为v2ray配置"""
-        if link.startswith('vmess://'):
-            return self._parse_vmess(link)
-        elif link.startswith('ss://'):
-            return self._parse_ss(link)
-        elif link.startswith('trojan://'):
-            return self._parse_trojan(link)
-        elif link.startswith('vless://'):
-            return self._parse_vless(link)
-        else:
+    def check_sub_file(self):
+        """检查sub.txt文件是否存在"""
+        if not os.path.exists(self.sub_file):
+            print(f"❌ 错误: 当前目录下找不到 {self.sub_file}")
+            print(f"📁 当前目录文件列表:")
+            for file in os.listdir('.'):
+                print(f"   - {file}")
+            return False
+        return True
+    
+    def read_subscription(self):
+        """读取订阅文件内容"""
+        try:
+            with open(self.sub_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            print(f"✅ 成功读取 {self.sub_file}")
+            print(f"📊 文件大小: {len(content)} 字符")
+            return content
+        except Exception as e:
+            print(f"❌ 读取文件失败: {e}")
             return None
     
-    def _parse_vmess(self, link):
-        """解析vmess链接"""
+    def extract_nodes(self, content):
+        """提取所有节点链接"""
+        patterns = [
+            r'vmess://[A-Za-z0-9+/=]+',
+            r'vless://[^\s]+',
+            r'trojan://[^\s]+', 
+            r'ss://[^\s]+',
+            r'hysteria2://[^\s]+'
+        ]
+        
+        nodes = []
+        for pattern in patterns:
+            matches = re.findall(pattern, content)
+            nodes.extend(matches)
+        
+        print(f"🔍 发现 {len(nodes)} 个节点")
+        return nodes
+    
+    def safe_parse_vmess(self, vmess_url):
+        """安全解析VMess"""
         try:
-            # 移除vmess://前缀
-            encoded = link[8:]
-            # 补齐base64填充
-            padded = encoded + '=' * (4 - len(encoded) % 4)
-            decoded = base64.b64decode(padded).decode('utf-8')
+            encoded = vmess_url[8:]  # 去掉'vmess://'
+            padding = 4 - len(encoded) % 4
+            if padding != 4:
+                encoded += '=' * padding
+            
+            decoded = base64.b64decode(encoded).decode('utf-8', errors='ignore')
             config = json.loads(decoded)
             
-            v2ray_config = {
-                "protocol": "vmess",
-                "settings": {
-                    "vnext": [{
-                        "address": config.get("add"),
-                        "port": int(config.get("port", 443)),
-                        "users": [{
-                            "id": config.get("id"),
-                            "alterId": config.get("aid", 0),
-                            "security": config.get("scy", "auto")
-                        }]
-                    }]
-                },
-                "streamSettings": {
-                    "network": config.get("net", "tcp"),
-                    "security": config.get("tls", ""),
-                    "wsSettings": config.get("wsSettings", {}),
-                    "tcpSettings": config.get("tcpSettings", {}),
-                    "kcpSettings": config.get("kcpSettings", {}),
-                    "httpSettings": config.get("httpSettings", {})
-                }
-            }
-            
-            # 设置sni
-            if config.get("sni"):
-                v2ray_config["streamSettings"]["tlsSettings"] = {
-                    "serverName": config.get("sni")
-                }
-            
-            return v2ray_config
-        except Exception as e:
-            print(f"解析vmess失败: {e}")
-            return None
-    
-    def _parse_ss(self, link):
-        """解析ss链接"""
-        try:
-            # ss://method:password@host:port#remark
-            parsed = urlparse(link)
-            userinfo = parsed.netloc.split('@')[0]
-            server_part = parsed.netloc.split('@')[1]
-            
-            # 解码base64
-            if ':' in userinfo:
-                method, password = userinfo.split(':', 1)
-            else:
-                decoded = base64.b64decode(userinfo + '=' * (4 - len(userinfo) % 4)).decode()
-                method, password = decoded.split(':', 1)
-            
-            host, port = server_part.split(':')
-            
             return {
-                "protocol": "shadowsocks",
-                "settings": {
-                    "servers": [{
-                        "address": host,
-                        "port": int(port),
-                        "method": method,
-                        "password": password
-                    }]
-                }
+                'type': 'vmess',
+                'address': config.get('add', ''),
+                'port': config.get('port', ''),
+                'remark': config.get('ps', '')[:20]
             }
-        except Exception as e:
-            print(f"解析ss失败: {e}")
-            return None
+        except:
+            return {'error': '解析失败'}
     
-    def _parse_trojan(self, link):
-        """解析trojan链接"""
+    def safe_parse_vless_trojan(self, url):
+        """解析VLESS/Trojan"""
         try:
-            # trojan://password@host:port#remark
-            parsed = urlparse(link)
-            password = parsed.netloc.split('@')[0]
-            server_part = parsed.netloc.split('@')[1]
-            host, port = server_part.split(':')
-            
+            parsed = urlparse(url)
             return {
-                "protocol": "trojan",
-                "settings": {
-                    "servers": [{
-                        "address": host,
-                        "port": int(port),
-                        "password": password
-                    }]
-                },
-                "streamSettings": {
-                    "security": "tls",
-                    "tlsSettings": {
-                        "serverName": host
-                    }
-                }
+                'type': 'vless' if url.startswith('vless') else 'trojan',
+                'address': parsed.hostname,
+                'port': parsed.port,
+                'protocol': parsed.scheme
             }
-        except Exception as e:
-            print(f"解析trojan失败: {e}")
-            return None
+        except:
+            return {'error': '解析失败'}
     
-    def _parse_vless(self, link):
-        """解析vless链接"""
+    def safe_parse_ss(self, ss_url):
+        """解析Shadowsocks"""
         try:
-            # vless://uuid@host:port?type=ws&security=tls#remark
-            parsed = urlparse(link)
-            userinfo = parsed.netloc.split('@')[0]
-            server_part = parsed.netloc.split('@')[1]
-            host, port = server_part.split(':')
-            
-            query_params = {}
-            for param in parsed.query.split('&'):
-                if '=' in param:
-                    key, value = param.split('=', 1)
-                    query_params[key] = value
-            
-            return {
-                "protocol": "vless",
-                "settings": {
-                    "vnext": [{
-                        "address": host,
-                        "port": int(port),
-                        "users": [{
-                            "id": userinfo,
-                            "encryption": "none"
-                        }]
-                    }]
-                },
-                "streamSettings": {
-                    "network": query_params.get("type", "tcp"),
-                    "security": query_params.get("security", "")
+            if '@' in ss_url:
+                parts = ss_url[5:].split('@')  # 去掉'ss://'
+                host_port = parts[1].split('#')[0]
+                host, port = host_port.split(':')
+                return {
+                    'type': 'ss',
+                    'address': host,
+                    'port': port
                 }
-            }
-        except Exception as e:
-            print(f"解析vless失败: {e}")
-            return None
+            return {'error': '解析失败'}
+        except:
+            return {'error': '解析失败'}
     
-    def create_v2ray_config(self, outbound_config, local_port=1080):
-        """创建完整的v2ray配置文件"""
+    def parse_node(self, node_url):
+        """统一解析节点"""
+        if node_url.startswith('vmess://'):
+            return self.safe_parse_vmess(node_url)
+        elif node_url.startswith('vless://'):
+            return self.safe_parse_vless_trojan(node_url)
+        elif node_url.startswith('trojan://'):
+            return self.safe_parse_vless_trojan(node_url)
+        elif node_url.startswith('ss://'):
+            return self.safe_parse_ss(node_url)
+        elif node_url.startswith('hysteria2://'):
+            return {'type': 'hysteria2', 'address': '特殊协议'}
+        else:
+            return {'error': '未知协议'}
+    
+    def github_safe_connect_test(self, host, port):
+        """GitHub环境安全的连接测试"""
+        try:
+            start_time = time.time()
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(self.timeout)
+            result = sock.connect_ex((host, int(port)))
+            connect_time = (time.time() - start_time) * 1000
+            sock.close()
+            
+            return result == 0, connect_time
+        except:
+            return False, None
+    
+    def test_single_node(self, node_url, index):
+        """测试单个节点"""
+        # 解析节点信息
+        node_info = self.parse_node(node_url)
+        
+        if 'error' in node_info:
+            return {
+                'index': index,
+                'url': node_url[:60] + '...',
+                'info': node_info,
+                'status': 'parse_error',
+                'latency': None
+            }
+        
+        # 测试连接
+        success, latency = self.github_safe_connect_test(
+            node_info['address'], 
+            node_info.get('port', 80)
+        )
+        
+        status = 'success' if success else 'connect_failed'
+        
         return {
-            "inbounds": [{
-                "port": local_port,
-                "listen": "127.0.0.1",
-                "protocol": "socks",
-                "settings": {
-                    "auth": "noauth",
-                    "udp": True
-                },
-                "tag": "socks-inbound"
-            }],
-            "outbounds": [outbound_config, {
-                "protocol": "freedom",
-                "tag": "direct"
-            }],
-            "routing": {
-                "domainStrategy": "IPIfNonMatch",
-                "rules": [{
-                    "type": "field",
-                    "ip": ["geoip:private"],
-                    "outboundTag": "direct"
-                }]
-            }
+            'index': index,
+            'url': node_url[:60] + '...',
+            'info': node_info,
+            'status': status,
+            'latency': latency
         }
     
-    def test_proxy_latency(self, link):
-        """测试单个代理的延迟"""
-        outbound_config = self.parse_proxy_link(link)
-        if not outbound_config:
+    def run_test(self):
+        """执行完整测试流程"""
+        print("=" * 60)
+        print("🚀 GitHub节点连通性测试")
+        print("=" * 60)
+        
+        # 1. 检查文件
+        if not self.check_sub_file():
             return None
         
-        # 创建临时配置文件
-        config = self.create_v2ray_config(outbound_config)
-        
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-            json.dump(config, f, indent=2)
-            config_file = f.name
-        
-        try:
-            # 启动v2ray
-            process = subprocess.Popen(
-                [self.v2ray_bin, 'run', '-config', config_file],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
-            )
-            
-            # 等待v2ray启动
-            time.sleep(3)
-            
-            # 测试延迟
-            start_time = time.time()
-            curl_result = subprocess.run([
-                'curl', '-x', 'socks5://127.0.0.1:1080',
-                '--connect-timeout', '10',
-                '--max-time', '15',
-                '-s', '-o', '/dev/null', '-w', '%{http_code}',
-                self.test_url
-            ], capture_output=True, text=True, timeout=20)
-            
-            latency = (time.time() - start_time) * 1000
-            
-            # 停止v2ray
-            process.terminate()
-            process.wait(timeout=5)
-            
-            if curl_result.returncode == 0 and curl_result.stdout.strip() == '200':
-                return latency
-            else:
-                return None
-                
-        except subprocess.TimeoutExpired:
+        # 2. 读取内容
+        content = self.read_subscription()
+        if not content:
             return None
-        except Exception as e:
-            print(f"测试错误: {e}")
+        
+        # 3. 提取节点
+        nodes = self.extract_nodes(content)
+        if not nodes:
+            print("❌ 未找到有效节点")
             return None
-        finally:
-            # 清理临时文件
-            try:
-                os.unlink(config_file)
-            except:
-                pass
-            # 确保v2ray进程被终止
-            try:
-                process.terminate()
-            except:
-                pass
+        
+        # 限制测试数量避免超时
+        test_nodes = nodes[:20]
+        print(f"🧪 测试前 {len(test_nodes)} 个节点")
+        
+        results = []
+        
+        # 并发测试
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            futures = []
+            for i, node_url in enumerate(test_nodes, 1):
+                future = executor.submit(self.test_single_node, node_url, i)
+                futures.append(future)
+            
+            for i, future in enumerate(as_completed(futures), 1):
+                try:
+                    result = future.result()
+                    results.append(result)
+                    
+                    # 实时显示进度
+                    icon = '✅' if result['status'] == 'success' else '❌'
+                    latency_info = f"{result['latency']:.1f}ms" if result['latency'] else "超时"
+                    
+                    print(f"{icon} [{result['index']:2d}] {result['info']['type']:10} {result['info']['address']:15} 延迟: {latency_info}")
+                    
+                except Exception as e:
+                    print(f"💥 测试异常: {e}")
+        
+        return self.generate_report(results)
+    
+    def generate_report(self, results):
+        """生成测试报告"""
+        print("\n" + "=" * 60)
+        print("📊 测试报告")
+        print("=" * 60)
+        
+        # 统计信息
+        total = len(results)
+        success_nodes = [r for r in results if r['status'] == 'success']
+        success_count = len(success_nodes)
+        
+        print(f"📈 统计信息:")
+        print(f"   总节点数: {total}")
+        print(f"   ✅ 连通正常: {success_count}")
+        print(f"   ❌ 连接失败: {total - success_count}")
+        print(f"   📊 成功率: {success_count/total*100:.1f}%")
+        
+        # 显示最佳节点
+        if success_nodes:
+            success_nodes.sort(key=lambda x: x['latency'] or float('inf'))
+            
+            print(f"\n🏆 最佳节点 (按延迟排序):")
+            for i, node in enumerate(success_nodes[:10], 1):
+                info = node['info']
+                print(f"{i:2d}. {info['type']:10} {info['address']:15}:{info.get('port', '?'):5} 延迟: {node['latency']:6.1f}ms")
+        
+        # 保存详细结果
+        report_data = {
+            'test_time': time.strftime('%Y-%m-%d %H:%M:%S'),
+            'total_nodes': total,
+            'successful_nodes': success_count,
+            'success_rate': round(success_count/total*100, 1),
+            'top_nodes': [
+                {
+                    'type': node['info']['type'],
+                    'address': node['info']['address'],
+                    'port': node['info'].get('port'),
+                    'latency': node['latency'],
+                    'remark': node['info'].get('remark', '')
+                }
+                for node in success_nodes[:5]
+            ]
+        }
+        
+        # 保存到文件
+        with open('test_results.json', 'w', encoding='utf-8') as f:
+            json.dump(report_data, f, ensure_ascii=False, indent=2)
+        
+        print(f"\n💾 详细结果已保存到: test_results.json")
+        
+        return report_data
 
 def main():
-    print("v2ray代理延迟测试")
-    print("=" * 50)
+    """主函数"""
+    tester = GitHubNodeTester()
+    results = tester.run_test()
     
-    # 读取代理链接
-    try:
-        with open('all_configs.txt', 'r', encoding='utf-8') as f:
-            links = [line.strip() for line in f if line.strip() and not line.startswith('#')]
-    except FileNotFoundError:
-        print("错误: 找不到 sub.txt 文件")
-        return
-    
-    if not links:
-        print("错误: sub.txt 中没有代理链接")
-        return
-    
-    print(f"找到 {len(links)} 个代理链接")
-    
-    tester = V2RayTester()
-    results = []
-    
-    for i, link in enumerate(links, 1):
-        print(f"测试 [{i}/{len(links)}]: {link[:60]}...")
+    # 设置GitHub Actions输出
+    if results and os.getenv('GITHUB_ACTIONS'):
+        success_rate = results['success_rate']
+        best_latency = results['top_nodes'][0]['latency'] if results['top_nodes'] else 0
         
-        latency = tester.test_proxy_latency(link)
-        if latency is not None:
-            results.append((latency, link))
-    
-    # 按延迟排序
-    results.sort(key=lambda x: x[0])
-    
-    # 写入结果
-    with open('res.txt', 'w', encoding='utf-8') as f:
-        for latency, link in results:
-            f.write(f"{link}\n")
-    
-    print(f"\n测试完成! 可用代理: {len(results)}/{len(links)}")
-    if results:
-        print("最快的3个代理:")
-        for i, (latency, link) in enumerate(results[:3], 1):
-            print(f"{i}. {latency:.1f}ms - {link[:50]}...")
+        print(f"::set-output name=success_rate::{success_rate}")
+        print(f"::set-output name=best_latency::{best_latency}")
+        print(f"::set-output name=total_nodes::{results['total_nodes']}")
 
 if __name__ == "__main__":
     main()
