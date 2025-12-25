@@ -3,9 +3,3 @@
 #subscription-userinfo: upload=29; download=12; total=10737418240000000; expire=2546249531
 #support-url: https://github.com/liMilCo/v2r
 #profile-web-page-url: https://limilco.github.io/v2r/
-trojan://44e660b0ee21cf3ac66aee2c08af85d2@160.16.132.158:2760/?type=tcp&security=tls&sni=www.nintendogames.net&allowInsecure=1#%E6%96%B0%E5%8A%A0%E5%9D%A1%7C%40ripaojiedian
-trojan://44e660b0ee21cf3ac66aee2c08af85d2@160.16.117.182:3093/?type=tcp&security=tls&sni=www.nintendogames.net#%E6%97%A5%E6%9C%AC3%7C%40ripaojiedian
-trojan://44e660b0ee21cf3ac66aee2c08af85d2@160.16.89.176:4054/?type=tcp&security=tls&sni=www.nintendogames.net#%E7%BE%8E%E5%9B%BD%7C%40ripaojiedian
-trojan://44e660b0ee21cf3ac66aee2c08af85d2@160.16.132.158:4054/?type=tcp&security=tls&sni=www.nintendogames.net&allowInsecure=1#%E7%BE%8E%E5%9B%BD2%7C%40ripaojiedian
-trojan://44e660b0ee21cf3ac66aee2c08af85d2@153.121.53.187:3169/?type=tcp&security=tls&sni=www.nintendogames.net#%E6%97%A5%E6%9C%AC2%7C%40ripaojiedian
-trojan://44e660b0ee21cf3ac66aee2c08af85d2@160.16.138.24:2760/?type=tcp&security=tls&sni=www.nintendogames.net&allowInsecure=1#%E6%96%B0%E5%8A%A0%E5%9D%A12%7C%40ripaojiedian
