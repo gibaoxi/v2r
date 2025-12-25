@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 
 class NodeConnectivityTester:
     def __init__(self):
-        self.sub_file = "sub.txt"
+        self.sub_file = "all_configs.txt"
         self.ping_timeout = 3
         self.tcp_timeout = 5
         self.max_workers = 3
