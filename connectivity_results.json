@@ -1,406 +1,139 @@
 {
-  "test_time": "2025-12-25 13:49:16",
-  "total_nodes_tested": 137,
-  "filtered_nodes_count": 49,
-  "statistics": {
-    "both_success": 0,
-    "ping_only": 5,
-    "tcp_only": 44,
-    "parse_errors": 0,
-    "both_failed_filtered": 81
+  "test_time": "2025-12-25 14:08:58",
+  "test_config": {
+    "enable_ping": false,
+    "enable_tcp": false,
+    "enable_speedtest": true
   },
-  "nodes_sorted_by_latency": [
-    {
-      "original_config": "vmess://eyJhZGQiOiI4Mi4xOTguMjQ2Ljk3IiwiYWlkIjoiMCIsImFscG4iOiIiLCJob3N0IjoiIiwiaWQiOiJkMTNmYzJmNS0zZTA1LTQ3OTUtODFlYi00NDE0M2EwOWU1NTIiLCJuZXQiOiJ0Y3AiLCJwYXRoIjoiLyIsInBvcnQiOiIxODAiLCJwcyI6Iue+juWbvTR8QHJpcGFvamllZGlhbiIsInNjeSI6ImF1dG8iLCJzbmkiOiIiLCJ0bHMiOiIiLCJ0eXBlIjoibm9uZSIsInYiOiIyIn0=",
-      "host": "82.198.246.97",
-      "port": "180",
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 47.47128486633301
-    },
-    {
-      "original_config": "ss://YWVzLTI1Ni1jZmI6YW1hem9uc2tyMDU@63.180.254.10:443#tg%E9%A2%91%E9%81%93%3A%40ripaojiedian",
-      "host": "63.180.254.10",
-      "port": 443,
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 115.82517623901367
-    },
+  "total_nodes_tested": 10,
+  "filtered_nodes_count": 10,
+  "statistics": {
+    "parse_errors": 0,
+    "all_failed": 0,
+    "ping_success": 0,
+    "tcp_success": 0,
+    "speed_success": 10
+  },
+  "nodes_sorted": [
     {
       "original_config": "trojan://44e660b0ee21cf3ac66aee2c08af85d2@160.16.132.158:4054/?type=tcp&security=tls&sni=www.nintendogames.net&allowInsecure=1#%E7%BE%8E%E5%9B%BD2%7C%40ripaojiedian",
       "host": "160.16.132.158",
       "port": 4054,
-      "status": "tcp_only",
+      "status": "all_success",
       "ping_latency": null,
-      "tcp_latency": 132.5836181640625
-    },
-    {
-      "original_config": "trojan://44e660b0ee21cf3ac66aee2c08af85d2@153.121.53.187:3169/?type=tcp&security=tls&sni=www.nintendogames.net#%E6%97%A5%E6%9C%AC2%7C%40ripaojiedian",
-      "host": "153.121.53.187",
-      "port": 3169,
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 132.60269165039062
-    },
-    {
-      "original_config": "trojan://44e660b0ee21cf3ac66aee2c08af85d2@160.16.138.24:2760/?type=tcp&security=tls&sni=www.nintendogames.net&allowInsecure=1#%E6%96%B0%E5%8A%A0%E5%9D%A12%7C%40ripaojiedian",
-      "host": "160.16.138.24",
-      "port": 2760,
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 132.79962539672852
+      "tcp_latency": null,
+      "speed_mbps": 447.15577782393575,
+      "speed_mbs": 55.89447222799197,
+      "success_count": 1,
+      "total_tests": 1
     },
     {
       "original_config": "trojan://44e660b0ee21cf3ac66aee2c08af85d2@160.16.132.158:2760/?type=tcp&security=tls&sni=www.nintendogames.net&allowInsecure=1#%E6%96%B0%E5%8A%A0%E5%9D%A1%7C%40ripaojiedian",
       "host": "160.16.132.158",
       "port": 2760,
-      "status": "tcp_only",
+      "status": "all_success",
       "ping_latency": null,
-      "tcp_latency": 132.89952278137207
+      "tcp_latency": null,
+      "speed_mbps": 423.96206541697774,
+      "speed_mbs": 52.99525817712222,
+      "success_count": 1,
+      "total_tests": 1
     },
     {
-      "original_config": "trojan://44e660b0ee21cf3ac66aee2c08af85d2@160.16.117.182:3093/?type=tcp&security=tls&sni=www.nintendogames.net#%E6%97%A5%E6%9C%AC3%7C%40ripaojiedian",
-      "host": "160.16.117.182",
-      "port": 3093,
-      "status": "tcp_only",
+      "original_config": "trojan://44e660b0ee21cf3ac66aee2c08af85d2@153.121.53.187:3169/?type=tcp&security=tls&sni=www.nintendogames.net#%E6%97%A5%E6%9C%AC2%7C%40ripaojiedian",
+      "host": "153.121.53.187",
+      "port": 3169,
+      "status": "all_success",
       "ping_latency": null,
-      "tcp_latency": 133.07929039001465
-    },
-    {
-      "original_config": "trojan://44e660b0ee21cf3ac66aee2c08af85d2@160.16.89.176:4054/?type=tcp&security=tls&sni=www.nintendogames.net#%E7%BE%8E%E5%9B%BD%7C%40ripaojiedian",
-      "host": "160.16.89.176",
-      "port": 4054,
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 133.66246223449707
+      "tcp_latency": null,
+      "speed_mbps": 416.76456931960234,
+      "speed_mbs": 52.09557116495029,
+      "success_count": 1,
+      "total_tests": 1
     },
     {
       "original_config": "trojan://44e660b0ee21cf3ac66aee2c08af85d2@112.118.116.8:443/?type=tcp&security=tls&sni=www.nintendogames.net#%E9%A6%99%E6%B8%AF3%7C%40ripaojiedian",
       "host": "112.118.116.8",
       "port": 443,
-      "status": "tcp_only",
+      "status": "all_success",
       "ping_latency": null,
-      "tcp_latency": 181.50615692138672
+      "tcp_latency": null,
+      "speed_mbps": 404.12890669223157,
+      "speed_mbs": 50.516113336528946,
+      "success_count": 1,
+      "total_tests": 1
     },
     {
       "original_config": "trojan://44e660b0ee21cf3ac66aee2c08af85d2@112.118.116.8:443?sni=www.nintendogames.net&peer=www.nintendogames.net&security=tls#HK 🇭🇰 ┇ TROJAN-TCP-TLS - HKT Limited ┇ 112.118.116.8",
       "host": "112.118.116.8",
       "port": 443,
-      "status": "tcp_only",
+      "status": "all_success",
       "ping_latency": null,
-      "tcp_latency": 181.92744255065918
+      "tcp_latency": null,
+      "speed_mbps": 403.1509570884135,
+      "speed_mbs": 50.39386963605169,
+      "success_count": 1,
+      "total_tests": 1
     },
     {
-      "original_config": "vless://e258977b-e413-4718-a3af-02d75492c349@47.57.190.228:8388?type=tcp&security=none&path=/?ed=2560#HK 🇭🇰 ┇ VLESS-TCP-NTLS - Alibaba US Technology Co., Ltd. ┇ 47.57.190.228",
-      "host": "47.57.190.228",
-      "port": 8388,
-      "status": "tcp_only",
+      "original_config": "trojan://44e660b0ee21cf3ac66aee2c08af85d2@160.16.117.182:3093/?type=tcp&security=tls&sni=www.nintendogames.net#%E6%97%A5%E6%9C%AC3%7C%40ripaojiedian",
+      "host": "160.16.117.182",
+      "port": 3093,
+      "status": "all_success",
       "ping_latency": null,
-      "tcp_latency": 182.24740028381348
+      "tcp_latency": null,
+      "speed_mbps": 385.75614909885184,
+      "speed_mbs": 48.21951863735648,
+      "success_count": 1,
+      "total_tests": 1
     },
     {
-      "original_config": "vmess://eyJ2IjoiMiIsInBzIjoiSEsgXHVkODNjXHVkZGVkXHVkODNjXHVkZGYwIFx1MjUwNyBWTUVTUy1UQ1AtTlRMUyAtIEhLVCBMaW1pdGVkIFx1MjUwNyA0Mi4yLjYuMTY2IiwiYWRkIjoidjEwLmhkYWNkLmNvbSIsInBvcnQiOjMwODA3LCJpZCI6ImNiYjNmODc3LWQxZmItMzQ0Yy04N2E5LWQxNTNiZmZkNTQ4NCIsImFpZCI6Miwic2N5IjoiYXV0byIsIm5ldCI6InRjcCIsInR5cGUiOiJub25lIiwicGF0aCI6Ii8ifQ",
-      "host": "v10.hdacd.com",
-      "port": 30807,
-      "status": "tcp_only",
+      "original_config": "trojan://44e660b0ee21cf3ac66aee2c08af85d2@160.16.138.24:2760/?type=tcp&security=tls&sni=www.nintendogames.net&allowInsecure=1#%E6%96%B0%E5%8A%A0%E5%9D%A12%7C%40ripaojiedian",
+      "host": "160.16.138.24",
+      "port": 2760,
+      "status": "all_success",
       "ping_latency": null,
-      "tcp_latency": 182.73663520812988
+      "tcp_latency": null,
+      "speed_mbps": 382.0724118723641,
+      "speed_mbs": 47.759051484045514,
+      "success_count": 1,
+      "total_tests": 1
     },
     {
-      "original_config": "vmess://eyJhZGQiOiJ2MTAuaGRhY2QuY29tIiwiYWlkIjoiMiIsImFscG4iOiIiLCJob3N0IjoiIiwiaWQiOiJjYmIzZjg3Ny1kMWZiLTM0NGMtODdhOS1kMTUzYmZmZDU0ODQiLCJuZXQiOiJ0Y3AiLCJwYXRoIjoiLyIsInBvcnQiOiIzMDgwNyIsInBzIjoi6aaZ5rivfEByaXBhb2ppZWRpYW4iLCJzY3kiOiJhdXRvIiwic25pIjoiIiwidGxzIjoiIiwidHlwZSI6Im5vbmUiLCJ2IjoiMiJ9",
-      "host": "v10.hdacd.com",
-      "port": "30807",
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 183.0770969390869
-    },
-    {
-      "original_config": "vless://3e7f67de-648e-4871-b51a-a225214d41ee@8.218.41.50:443?type=tcp&security=reality&sni=cdn.userway.org&fp=chrome&pbk=TRP10HqKUXEQ3O-cfsq93DycfBmbJe9KM36yvSa8Mmw#HK 🇭🇰 ┇ VLESS-TCP-RLT - Alibaba US Technology Co., Ltd. ┇ 8.218.41.50",
-      "host": "8.218.41.50",
+      "original_config": "ss://YWVzLTI1Ni1jZmI6YW1hem9uc2tyMDU@63.180.254.10:443#tg%E9%A2%91%E9%81%93%3A%40ripaojiedian",
+      "host": "63.180.254.10",
       "port": 443,
-      "status": "tcp_only",
+      "status": "all_success",
       "ping_latency": null,
-      "tcp_latency": 183.3181381225586
+      "tcp_latency": null,
+      "speed_mbps": 363.4116916472469,
+      "speed_mbs": 45.426461455905866,
+      "success_count": 1,
+      "total_tests": 1
     },
     {
-      "original_config": "ss://YWVzLTI1Ni1jZmI6WG44aktkbURNMDBJZU8lIyQjZkpBTXRzRUFFVU9wSC9ZV1l0WXFERm5UMFNW@216.250.97.82:38388#HK 🇭🇰 ┇ SHADOWSOCKS-TCP-NTLS - HOSTHATCH ┇ 216.250.97.82",
-      "host": "216.250.97.82",
-      "port": 38388,
-      "status": "tcp_only",
+      "original_config": "vmess://eyJhZGQiOiI4Mi4xOTguMjQ2Ljk3IiwiYWlkIjoiMCIsImFscG4iOiIiLCJob3N0IjoiIiwiaWQiOiJkMTNmYzJmNS0zZTA1LTQ3OTUtODFlYi00NDE0M2EwOWU1NTIiLCJuZXQiOiJ0Y3AiLCJwYXRoIjoiLyIsInBvcnQiOiIxODAiLCJwcyI6Iue+juWbvTR8QHJpcGFvamllZGlhbiIsInNjeSI6ImF1dG8iLCJzbmkiOiIiLCJ0bHMiOiIiLCJ0eXBlIjoibm9uZSIsInYiOiIyIn0=",
+      "host": "82.198.246.97",
+      "port": "180",
+      "status": "all_success",
       "ping_latency": null,
-      "tcp_latency": 183.54058265686035
+      "tcp_latency": null,
+      "speed_mbps": 340.56825975921197,
+      "speed_mbs": 42.571032469901496,
+      "success_count": 1,
+      "total_tests": 1
     },
     {
-      "original_config": "ss://YWVzLTEyOC1nY206NTdiYzBjMDQtODE4NC00OGY1LTkwNmItODk3ZDA5NWVkNDQ1@liubu9.singdns.com:17459#HK 🇭🇰 ┇ SHADOWSOCKS-TCP-NTLS - AKILE LTD ┇ 141.11.91.238",
-      "host": "liubu9.singdns.com",
-      "port": 17459,
-      "status": "tcp_only",
+      "original_config": "trojan://44e660b0ee21cf3ac66aee2c08af85d2@160.16.89.176:4054/?type=tcp&security=tls&sni=www.nintendogames.net#%E7%BE%8E%E5%9B%BD%7C%40ripaojiedian",
+      "host": "160.16.89.176",
+      "port": 4054,
+      "status": "all_success",
       "ping_latency": null,
-      "tcp_latency": 184.08989906311035
-    },
-    {
-      "original_config": "vmess://eyJ2IjoiMiIsInBzIjoiSEsgXHVkODNjXHVkZGVkXHVkODNjXHVkZGYwIFx1MjUwNyBWTUVTUy1UQ1AtTlRMUyAtIEhLVCBMaW1pdGVkIFx1MjUwNyAxMTIuMTIwLjEwNy4yMiIsImFkZCI6InNob3cuYmlsaWJpbGljbG91ZDAxLm5ldCIsInBvcnQiOjUwODgyLCJpZCI6IjAxMDY0OTg3LTlmNTctMzdmNi1hYjFhLTNhYmExNTA2NjY4NiIsImFpZCI6MCwic2N5IjoiYXV0byIsIm5ldCI6InRjcCJ9",
-      "host": "show.bilibilicloud01.net",
-      "port": 50882,
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 184.15212631225586
-    },
-    {
-      "original_config": "vless://5c183802-747d-4d2f-a6f1-aff2d5d78401@8.217.36.203:443?type=tcp&security=reality&sni=j.6sc.co&fp=chrome&pbk=DNdTBHyztOVJOBJQX91YXEhNkWbSAntqUoTFBHc6Clw&sid=6ba85179e30d4fc2#HK 🇭🇰 ┇ VLESS-TCP-RLT - Alibaba US Technology Co., Ltd. ┇ 8.217.36.203",
-      "host": "8.217.36.203",
-      "port": 443,
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 184.40699577331543
-    },
-    {
-      "original_config": "vless://9f70b695-3579-438c-a2c7-b248ddd03656@219.76.13.180:443?type=ws&security=tls&path=/?ed=2560&X@节点狂魔&sni=cmedget.cecd.top#HK 🇭🇰 ┇ VLESS-WS-TLS - HKT Limited ┇ 219.76.13.180",
-      "host": "219.76.13.180",
-      "port": 443,
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 184.57674980163574
-    },
-    {
-      "original_config": "ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNToyYWZiYzk3NDAwY2E3MWM4ZjMzMDZmOTg0M2E2ZTFjMg@216.250.97.118:443#HK 🇭🇰 ┇ SHADOWSOCKS-TCP-NTLS - HOSTHATCH ┇ 216.250.97.118",
-      "host": "216.250.97.118",
-      "port": 443,
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 185.47773361206055
-    },
-    {
-      "original_config": "vmess://eyJ2IjoiMiIsInBzIjoiSEsgXHVkODNjXHVkZGVkXHVkODNjXHVkZGYwIFx1MjUwNyBWTUVTUy1UQ1AtTlRMUyAtIEFsaWJhYmEgVVMgVGVjaG5vbG9neSBDby4sIEx0ZC4gXHUyNTA3IDQ3LjI0Mi4xNDUuMTYwIiwiYWRkIjoiNDcuMjQyLjE0NS4xNjAiLCJwb3J0Ijo0NDQ1NywiaWQiOiI0MDI5MDYwOS0yNzQzLTRkODUtYzljMy00YzcyZGQxNTFiOWYiLCJhaWQiOjAsInNjeSI6ImF1dG8iLCJuZXQiOiJ0Y3AiLCJ0eXBlIjoiaHR0cCIsInBhdGgiOiIvIn0",
-      "host": "47.242.145.160",
-      "port": 44457,
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 185.49013137817383
-    },
-    {
-      "original_config": "vmess://eyJ2IjoiMiIsInBzIjoiSEsgXHVkODNjXHVkZGVkXHVkODNjXHVkZGYwIFx1MjUwNyBWTUVTUy1UQ1AtTlRMUyAtIEFsaWJhYmEgVVMgVGVjaG5vbG9neSBDby4sIEx0ZC4gXHUyNTA3IDguMjE4LjEwNS4xOTYiLCJhZGQiOiI4LjIxOC4xMDUuMTk2IiwicG9ydCI6NTI3NTIsImlkIjoiOTI1YmRiZjUtNzJiZS00NDM3LWJlYmYtNDQxYzYxMDg5ZjZiIiwiYWlkIjowLCJzY3kiOiJhdXRvIiwibmV0IjoidGNwIiwidHlwZSI6Im5vbmUiLCJwYXRoIjoiLyJ9",
-      "host": "8.218.105.196",
-      "port": 52752,
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 185.73975563049316
-    },
-    {
-      "original_config": "vmess://eyJ2IjoiMiIsInBzIjoiSEsgXHVkODNjXHVkZGVkXHVkODNjXHVkZGYwIFx1MjUwNyBWTUVTUy1XUy1OVExTIC0gQWxpYmFiYSBVUyBUZWNobm9sb2d5IENvLiwgTHRkLiBcdTI1MDcgNDcuMjQ0LjEyMC4xOTciLCJhZGQiOiI0Ny4yNDQuMTIwLjE5NyIsInBvcnQiOjQ0ODY3LCJpZCI6Ijg0NWU2YjA4LTI5MTktNDI5MC1hZGUwLTVkYzdkY2VhNTljYSIsImFpZCI6MCwic2N5IjoiYXV0byIsIm5ldCI6IndzIiwicGF0aCI6Ii9hcmtpP2VkPTIwNDgifQ",
-      "host": "47.244.120.197",
-      "port": 44867,
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 186.06877326965332
-    },
-    {
-      "original_config": "vmess://eyJ2IjoiMiIsInBzIjoiSEsgXHVkODNjXHVkZGVkXHVkODNjXHVkZGYwIFx1MjUwNyBWTUVTUy1UQ1AtTlRMUyAtIFBDQ1cgSU1TIEx0ZCBQQ0NXIEJ1c2luZXNzIEludGVybmV0IEFjY2VzcyBcdTI1MDcgMjAyLjg1LjUzLjE3OSIsImFkZCI6InYzNi5oZGFjZC5jb20iLCJwb3J0IjozMDgzNiwiaWQiOiJjYmIzZjg3Ny1kMWZiLTM0NGMtODdhOS1kMTUzYmZmZDU0ODQiLCJhaWQiOjIsInNjeSI6ImF1dG8iLCJuZXQiOiJ0Y3AiLCJ0eXBlIjoibm9uZSIsInBhdGgiOiIvIn0",
-      "host": "v36.hdacd.com",
-      "port": 30836,
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 186.16271018981934
-    },
-    {
-      "original_config": "vless://9f70b695-3579-438c-a2c7-b248ddd03656@47.242.145.136:8001?type=ws&security=tls&path=/?ed=2560&X@节点狂魔&sni=cmedget.cecd.top#HK 🇭🇰 ┇ VLESS-WS-TLS - Alibaba US Technology Co., Ltd. ┇ 47.242.145.136",
-      "host": "47.242.145.136",
-      "port": 8001,
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 186.4488124847412
-    },
-    {
-      "original_config": "vmess://eyJ2IjoiMiIsInBzIjoiSEsgXHVkODNjXHVkZGVkXHVkODNjXHVkZGYwIFx1MjUwNyBWTUVTUy1XUy1OVExTIC0gQWxpYmFiYSBVUyBUZWNobm9sb2d5IENvLiwgTHRkLiBcdTI1MDcgOC4yMTguMTk5LjExMSIsImFkZCI6IjguMjE4LjE5OS4xMTEiLCJwb3J0Ijo4MDgwLCJpZCI6ImY1NWRiNDJkLWVlNTItNGE0Ny04ODBiLTZmN2IxMjNhYjIyMiIsImFpZCI6MCwic2N5IjoiYXV0byIsIm5ldCI6IndzIiwidHlwZSI6ImF1dG8iLCJwYXRoIjoiLyJ9",
-      "host": "8.218.199.111",
-      "port": 8080,
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 186.4945888519287
-    },
-    {
-      "original_config": "vless://824dc1b1-e35b-4121-ad73-9acaf13d6410@n1761184282.74qxv.top:443?type=ws&security=tls&path=/824dc1b1-e35b-4121-ad73-9acaf13d6410&sni=n1761184282.74qxv.top&fp=chrome#HK 🇭🇰 ┇ VLESS-WS-TLS - Alibaba US Technology Co., Ltd. ┇ 47.76.27.185",
-      "host": "n1761184282.74qxv.top",
-      "port": 443,
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 186.78760528564453
-    },
-    {
-      "original_config": "vmess://eyJ2IjoiMiIsInBzIjoiSEsgXHVkODNjXHVkZGVkXHVkODNjXHVkZGYwIFx1MjUwNyBWTUVTUy1XUy1UTFMgLSBBbGliYWJhIFVTIFRlY2hub2xvZ3kgQ28uLCBMdGQuIFx1MjUwNyA0Ny44Ni40LjE3NiIsImFkZCI6ImhrMi5scnpkeC51ayIsInBvcnQiOjQ0MywiaWQiOiJkYjY5ZDViYy1kMzZjLTQ5MDMtZjQ3MS03NGI5OGM1Y2VmZTUiLCJhaWQiOjAsInNjeSI6ImF1dG8iLCJuZXQiOiJ3cyIsImhvc3QiOiJoazIubHJ6ZHgudWsiLCJwYXRoIjoiL3JlZ2lzdGVyIiwidGxzIjoidGxzIiwic25pIjoiaGsyLmxyemR4LnVrIn0",
-      "host": "hk2.lrzdx.uk",
-      "port": 443,
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 188.14396858215332
-    },
-    {
-      "original_config": "vless://e258977b-e413-4718-a3af-02d75492c349@47.239.69.137:8440?type=tcp&security=none&path=/?ed=2560#HK 🇭🇰 ┇ VLESS-TCP-NTLS - Alibaba US Technology Co., Ltd. ┇ 47.239.69.137",
-      "host": "47.239.69.137",
-      "port": 8440,
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 188.28964233398438
-    },
-    {
-      "original_config": "ss://Y2hhY2hhMjAtaWV0Zjphc2QxMjM0NTY@103.149.182.86:8388#HK 🇭🇰 ┇ SHADOWSOCKS-TCP-NTLS - Yun Zhong Technology Limited ┇ 103.149.182.86",
-      "host": "103.149.182.86",
-      "port": 8388,
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 189.09549713134766
-    },
-    {
-      "original_config": "ss://Y2hhY2hhMjAtaWV0Zjphc2QxMjM0NTY@103.141.221.88:8388#HK 🇭🇰 ┇ SHADOWSOCKS-TCP-NTLS - Yun Zhong Technology Limited ┇ 103.141.221.88",
-      "host": "103.141.221.88",
-      "port": 8388,
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 189.8517608642578
-    },
-    {
-      "original_config": "ss://Y2hhY2hhMjAtaWV0Zjphc2QxMjM0NTY@103.149.182.203:8388#HK 🇭🇰 ┇ SHADOWSOCKS-TCP-NTLS - Yun Zhong Technology Limited ┇ 103.149.182.203",
-      "host": "103.149.182.203",
-      "port": 8388,
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 193.45331192016602
-    },
-    {
-      "original_config": "vless://45553a57-d94e-46bd-bea7-306eefab0d58@verahk1.uspn.io:8443?type=tcp&security=none#HK 🇭🇰 ┇ VLESS-TCP-NTLS - Tele Asia Limited ┇ 45.125.67.98",
-      "host": "verahk1.uspn.io",
-      "port": 8443,
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 204.08034324645996
-    },
-    {
-      "original_config": "vless://f61a4285-7264-4d07-9408-7b9ba1922c26@36.50.90.241:35951?type=ws&security=tls&path=/X@节点狂魔/?ed=2560&sni=gaosir.unfeeling.sbs#HK 🇭🇰 ┇ VLESS-WS-TLS - IoT Innovation Technologies Company Limited ┇ 36.50.90.241",
-      "host": "36.50.90.241",
-      "port": 35951,
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 212.21208572387695
-    },
-    {
-      "original_config": "trojan://cfdf8794-5365-41ac-9e59-573aab964b3e@green2.cdntencentmusic.com:31103/?type=tcp&security=tls&sni=green2.cdntencentmusic.com#%E9%A6%99%E6%B8%AF6%7C%40ripaojiedian",
-      "host": "green2.cdntencentmusic.com",
-      "port": 31103,
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 219.45571899414062
-    },
-    {
-      "original_config": "ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTpmOGY3YUN6Y1BLYnNGOHAz@203.23.128.33:990#HK 🇭🇰 ┇ SHADOWSOCKS-TCP-NTLS - LEASEWEB HONG KONG LIMITED ┇ 203.23.128.33",
-      "host": "203.23.128.33",
-      "port": 990,
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 225.9807586669922
-    },
-    {
-      "original_config": "vmess://eyJ2IjoiMiIsInBzIjoiSEsgXHVkODNjXHVkZGVkXHVkODNjXHVkZGYwIFx1MjUwNyBWTUVTUy1XUy1OVExTIC0gSEtUIExpbWl0ZWQgXHUyNTA3IDIxOS43OS40OS4xODAiLCJhZGQiOiJkOWJhNjU2ZC10NjZzZzAtdDdtemVjLXlqcTAuaGt0LmdvdG9jaGluYXRvd24ubmV0IiwicG9ydCI6ODAsImlkIjoiMjViMjY5OWEtZTE4ZS0xMWVjLThlNjktZjIzYzkxY2ZiYmM5IiwiYWlkIjoyLCJzY3kiOiJhdXRvIiwibmV0Ijoid3MiLCJ0eXBlIjoiYXV0byIsImhvc3QiOiJicm9hZGNhc3Rsdi5jaGF0LmJpbGliaWxpLmNvbSIsInBhdGgiOiIvIiwic25pIjoiYnJvYWRjYXN0bHYuY2hhdC5iaWxpYmlsaS5jb20ifQ",
-      "host": "d9ba656d-t66sg0-t7mzec-yjq0.hkt.gotochinatown.net",
-      "port": 80,
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 237.5478744506836
-    },
-    {
-      "original_config": "trojan://fab16fff-d149-417c-bdef-4bfcf2333bbe@hkt.iamnotagoodman.com:443?security=tls#HK 🇭🇰 ┇ TROJAN-TCP-TLS - WAP-AC ┇ 45.149.92.71",
-      "host": "hkt.iamnotagoodman.com",
-      "port": 443,
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 253.08871269226074
-    },
-    {
-      "original_config": "vless://46e274b0-8033-4011-b1a0-9d05c3531a79@hkg.tunnelguard.ru:443?type=xhttp&security=tls&path=/&sni=hkg.tunnelguard.ru&fp=chrome#HK 🇭🇰 ┇ VLESS-XHTTP-TLS - LEASEWEB HONG KONG LIMITED ┇ 27.0.232.191",
-      "host": "hkg.tunnelguard.ru",
-      "port": 443,
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 253.92770767211914
-    },
-    {
-      "original_config": "ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTpBUmd2R1p5d0ErZ2FjZ0dWMjZCdm11MDUrd1ptUlcvaitBZFUrWjhCdDQ0PQ@203.23.128.92:990#HK 🇭🇰 ┇ SHADOWSOCKS-TCP-NTLS - LEASEWEB HONG KONG LIMITED ┇ 203.23.128.92",
-      "host": "203.23.128.92",
-      "port": 990,
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 289.1416549682617
-    },
-    {
-      "original_config": "vmess://eyJ2IjoiMiIsInBzIjoiSEsgXHVkODNjXHVkZGVkXHVkODNjXHVkZGYwIFx1MjUwNyBWTUVTUy1XUy1OVExTIC0gSEtUIExpbWl0ZWQgXHUyNTA3IDIwMy4xOTguMjguMTY0IiwiYWRkIjoiYWZsenp1bC5tZWlxdWFua29uZ2ppYW4uY29tIiwicG9ydCI6NTI1MTEsImlkIjoiMzQyYmFjZmQtMmI4Zi0zZjQ5LWExNmUtNDM5ZGI1YjBiOWQ1IiwiYWlkIjowLCJzY3kiOiJhdXRvIiwibmV0Ijoid3MiLCJ0eXBlIjoibm9uZSIsInBhdGgiOiIvNTY0ZGZhMjAvIn0",
-      "host": "aflzzul.meiquankongjian.com",
-      "port": 52511,
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 379.8484802246094
-    },
-    {
-      "original_config": "ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNToyYmUwYzk1NC00MjkxLTQ1ZWEtYjQ3ZC1jYTcxMzE4MDU1MGI@hk01.x.quickcht3.club:52611#HK 🇭🇰 ┇ SHADOWSOCKS-TCP-NTLS - DMIT ┇ 154.12.178.115",
-      "host": "hk01.x.quickcht3.club",
-      "port": 52611,
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 572.5860595703125
-    },
-    {
-      "original_config": "trojan://qeu1xsn8-sn8w-datk-nw1x-tem5a0av1d4t@127.0.0.1:1080?security=tls&type=tcp#🕒 LAST UPDATE: 2025/12/24 | 23:52",
-      "host": "127.0.0.1",
-      "port": 1080,
-      "status": "ping_only",
-      "ping_latency": 0.032,
-      "tcp_latency": 0.07271766662597656
-    },
-    {
-      "original_config": "trojan://sbmjj4nj-nl2r-mts3-xt8a-ofhz5xbm8hzn@127.0.0.1:8080?security=tls&type=tcp#For enhanced GitHub access, visit Argh94 now!",
-      "host": "127.0.0.1",
-      "port": 8080,
-      "status": "ping_only",
-      "ping_latency": 0.033,
-      "tcp_latency": 0.06985664367675781
-    },
-    {
-      "original_config": "trojan://0rfgzi6l-1519-h6ss-cr48-5s2dhmstuso8@127.0.0.1:4080?security=tls&type=tcp#「 GitHub Argh94 ☕ 」",
-      "host": "127.0.0.1",
-      "port": 4080,
-      "status": "ping_only",
-      "ping_latency": 0.034,
-      "tcp_latency": 0.05316734313964844
-    },
-    {
-      "original_config": "trojan://d3wm30t0-yd9d-405i-1fya-au3lyifollxh@127.0.0.1:2080?security=tls&type=tcp#This is a free trial project.",
-      "host": "127.0.0.1",
-      "port": 2080,
-      "status": "ping_only",
-      "ping_latency": 0.034,
-      "tcp_latency": 0.06914138793945312
-    },
-    {
-      "original_config": "trojan://2dewpui4-bjmp-4x07-foq9-glnk1mgafify@127.0.0.1:8081?security=tls&type=tcp#</> Collector v5.0",
-      "host": "127.0.0.1",
-      "port": 8081,
-      "status": "ping_only",
-      "ping_latency": 0.035,
-      "tcp_latency": 0.07486343383789062
-    },
-    {
-      "original_config": "ss://Y2hhY2hhMjAtaWV0Zjphc2QxMjM0NTY@103.149.183.80:8388#HK 🇭🇰 ┇ SHADOWSOCKS-TCP-NTLS - Yun Zhong Technology Limited ┇ 103.149.183.80",
-      "host": "103.149.183.80",
-      "port": 8388,
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 1236.0146045684814
-    },
-    {
-      "original_config": "vmess://eyJ2IjoiMiIsInBzIjoiSEsgXHVkODNjXHVkZGVkXHVkODNjXHVkZGYwIFx1MjUwNyBWTUVTUy1XUy1UTFMgLSBIb25nIEtvbmcgQ29tbXVuaWNhdGlvbnMgSW50ZXJuYXRpb25hbCBDby4sIExpbWl0ZWQgXHUyNTA3IDE1NC4zOC4xMTYuOCIsImFkZCI6IjE1NC4zOC4xMTYuOCIsInBvcnQiOjQ0MywiaWQiOiI0YmYwNzVmNS00ZDVlLTRkMzktZjVhYi1iMzJhODYyNTBmMGUiLCJhaWQiOjAsInNjeSI6ImF1dG8iLCJuZXQiOiJ3cyIsImhvc3QiOiJoay5uYmVlLnBwLnVhIiwicGF0aCI6Ii9hYSIsInRscyI6InRscyIsInNuaSI6ImhrLm5iZWUucHAudWEifQ",
-      "host": "154.38.116.8",
-      "port": 443,
-      "status": "tcp_only",
-      "ping_latency": null,
-      "tcp_latency": 1258.2786083221436
+      "tcp_latency": null,
+      "speed_mbps": 331.4902819027697,
+      "speed_mbs": 41.436285237846214,
+      "success_count": 1,
+      "total_tests": 1
     }
   ]
 }
