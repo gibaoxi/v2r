@@ -1,0 +1,43 @@
+{
+  "test_time": "2025-12-25 12:24:16",
+  "total_nodes": 15,
+  "successful_nodes": 10,
+  "success_rate": 66.7,
+  "top_nodes": [
+    {
+      "type": "vless",
+      "address": "172.64.53.226",
+      "port": 443,
+      "latency": 1.8727779388427734,
+      "remark": ""
+    },
+    {
+      "type": "vless",
+      "address": "104.17.69.244",
+      "port": 443,
+      "latency": 2.2993087768554688,
+      "remark": ""
+    },
+    {
+      "type": "ss",
+      "address": "193.203.203.66",
+      "port": "443",
+      "latency": 13.936996459960938,
+      "remark": ""
+    },
+    {
+      "type": "vless",
+      "address": "notability.com",
+      "port": 2053,
+      "latency": 99.20382499694824,
+      "remark": ""
+    },
+    {
+      "type": "ss",
+      "address": "89.221.225.15",
+      "port": "443",
+      "latency": 133.8651180267334,
+      "remark": ""
+    }
+  ]
+}
