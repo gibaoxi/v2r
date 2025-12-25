@@ -1,0 +1,109 @@
+{
+  "test_time": "2025-12-25 12:41:46",
+  "total_nodes": 12,
+  "statistics": {
+    "both_success": 0,
+    "ping_only": 0,
+    "tcp_only": 10,
+    "both_failed": 2,
+    "parse_errors": 0
+  },
+  "results": [
+    {
+      "host": "89.221.225.15",
+      "port": 443,
+      "status": "tcp_only",
+      "ping_latency": null,
+      "tcp_latency": 135.31780242919922,
+      "config_preview": "ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTp5Q2JRNGJyeTRvdGZpZks3b2V..."
+    },
+    {
+      "host": "cfxr.eu.org",
+      "port": 2053,
+      "status": "tcp_only",
+      "ping_latency": null,
+      "tcp_latency": 2161.682605743408,
+      "config_preview": "vless://6949ea89-4825-1b47-3b03-113cede87254@cfxr.eu.org:205..."
+    },
+    {
+      "host": "104.17.69.244",
+      "port": 443,
+      "status": "tcp_only",
+      "ping_latency": null,
+      "tcp_latency": 2.866506576538086,
+      "config_preview": "vless://5a2c16f9-e365-4080-8d38-6924c3835586@104.17.69.244:4..."
+    },
+    {
+      "host": "193.203.203.66",
+      "port": 443,
+      "status": "tcp_only",
+      "ping_latency": null,
+      "tcp_latency": 14.262199401855469,
+      "config_preview": "ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTpTNmpVSzlGdzVmTUhnTnFscVh..."
+    },
+    {
+      "host": "185.181.10.175",
+      "port": 443,
+      "status": "both_failed",
+      "ping_latency": null,
+      "tcp_latency": 101.62925720214844,
+      "config_preview": "hy2://d2e6cb67-b10e-4816-ab2d-63e07f21c716@185.181.10.175:44..."
+    },
+    {
+      "host": "notability.com",
+      "port": 2053,
+      "status": "tcp_only",
+      "ping_latency": null,
+      "tcp_latency": 3.3249855041503906,
+      "config_preview": "vless://6949ea89-4825-1b47-3b03-113cede87254@notability.com:..."
+    },
+    {
+      "host": "cf.877774.xyz",
+      "port": 2087,
+      "status": "tcp_only",
+      "ping_latency": null,
+      "tcp_latency": 2.995729446411133,
+      "config_preview": "trojan://22367c45-f6c4-4ca8-8d52-d9787d7bbe91@cf.877774.xyz:..."
+    },
+    {
+      "host": "172.64.53.226",
+      "port": 443,
+      "status": "tcp_only",
+      "ping_latency": null,
+      "tcp_latency": 2.3946762084960938,
+      "config_preview": "vless://5a2c16f9-e365-4080-8d38-6924c3835586@172.64.53.226:4..."
+    },
+    {
+      "host": "62.210.196.68",
+      "port": 26691,
+      "status": "both_failed",
+      "ping_latency": null,
+      "tcp_latency": 105.72481155395508,
+      "config_preview": "hysteria://62.210.196.68:26691/?insecure=1&peer=apple.com&au..."
+    },
+    {
+      "host": "v35.hdacd.com",
+      "port": "30835",
+      "status": "tcp_only",
+      "ping_latency": null,
+      "tcp_latency": 204.08964157104492,
+      "config_preview": "vmess://eyJhZGQiOiJ2MzUuaGRhY2QuY29tIiwiYWlkIjoiMiIsImFscG4i..."
+    },
+    {
+      "host": "95.164.116.33",
+      "port": 443,
+      "status": "tcp_only",
+      "ping_latency": null,
+      "tcp_latency": 138.2732391357422,
+      "config_preview": "ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTpwUW1uQzAzSk9iYlBoZGg1RkJ..."
+    },
+    {
+      "host": "green2.cdntencentmusic.com",
+      "port": 35501,
+      "status": "tcp_only",
+      "ping_latency": null,
+      "tcp_latency": 369.412899017334,
+      "config_preview": "trojan://cdcfb9da-11a7-441d-a4c5-46afc0646f5b@green2.cdntenc..."
+    }
+  ]
+}
