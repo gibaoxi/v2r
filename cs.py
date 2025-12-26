@@ -29,8 +29,7 @@ class NodeConnectivityTester:
         
         # URL延迟测试配置
         self.url_test_sites = [
-            "http://www.google.com",
-            "http://www.github.com", 
+            "https://ip.sb", 
             "http://www.cloudflare.com",
             "http://www.baidu.com",
         ]
