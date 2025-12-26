@@ -5,5 +5,5 @@
 #profile-web-page-url: https://github.com/liMilCo/V2ray-config
 hysteria2://09cc2935-0eb4-469a-9d67-2037c68440ca@speedhk1.jiasujd.top:24955?insecure=0&obfs=salamander#HK 🇭🇰 ┇ HYSTERIA2-TCP-NTLS - DMIT ┇ 154.12.177.122
 hysteria2://7ae1a8a7-b025-4bac-8949-9b1e45926a9a@hk2.mutoujs.top:20000?insecure=0&obfs=salamander#HK 🇭🇰 ┇ HYSTERIA2-TCP-NTLS - DMIT ┇ 154.3.39.42
-hysteria2://78c2bad7-f5f3-41f2-88cc-81de9d05040b@xg1.mangshe.xyz:2056?sni=xg1.mangshe.xyz&insecure=1#HK 🇭🇰 ┇ HYSTERIA2-TCP-NTLS - ASNET ┇ 212.192.13.148
 hysteria2://03573f46-e944-11eb-a8bf-f23c91cfbbc9@9bc9db69-t6t0g0-tee612-2r82.hk1.hyhuawei.com:443?sni=9bc9db69-t6t0g0-tee612-2r82.hk1.hyhuawei.com&insecure=1#HK 🇭🇰 ┇ HYSTERIA2-TCP-NTLS - HKT Limited ┇ 220.246.94.129
+hysteria2://78c2bad7-f5f3-41f2-88cc-81de9d05040b@xg1.mangshe.xyz:2056?sni=xg1.mangshe.xyz&insecure=1#HK 🇭🇰 ┇ HYSTERIA2-TCP-NTLS - ASNET ┇ 212.192.13.148
