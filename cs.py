@@ -490,7 +490,7 @@ def main():
         return
     
     # 在这里设置测试开关
-    enable_ping = True      # Ping测试开关
+    enable_ping = False      # Ping测试开关
     enable_tcp = True         # TCP测试开关  
     enable_speedtest = False   # 速度测试开关
     
