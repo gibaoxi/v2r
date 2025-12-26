@@ -19,7 +19,7 @@ HTTP_TEST = True
 DOWNLOAD_TEST = True
 
 # 批量测试控制
-BATCH_SIZE = 5  # 同时测试的最大节点数（TCP/HTTP测试）
+BATCH_SIZE = 2  # 同时测试的最大节点数（TCP/HTTP测试）
 SERIAL_DOWNLOAD = True  # 串行下载测试（避免带宽竞争）
 
 XRAY_BIN = "./xray/xray"
