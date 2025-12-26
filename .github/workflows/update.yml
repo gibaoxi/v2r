@@ -59,7 +59,7 @@ jobs:
           unzip xray.zip -d xray
           chmod +x xray/xray
 
-- name: Restore sing-box cache
+      - name: Restore sing-box cache
         id: cache-singbox
         uses: actions/cache@v4
         with:
