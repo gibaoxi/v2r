@@ -1,43 +1,31 @@
 {
-  "test_time": "2025-12-26 05:16:01",
+  "test_time": "2025-12-26 05:25:55",
   "test_config": {
     "enable_ping": true,
     "enable_tcp": true,
-    "enable_speedtest": false
+    "enable_speedtest": true
   },
-  "total_nodes_tested": 40,
+  "total_nodes_tested": 8,
   "filtered_nodes_count": 8,
   "statistics": {
     "parse_errors": 0,
-    "all_failed": 32,
+    "all_failed": 0,
     "ping_success": 5,
     "tcp_success": 3,
-    "speed_success": 0
+    "speed_success": 8
   },
   "nodes_sorted": [
     {
-      "original_config": "ss://YWVzLTI1Ni1nY206MTIz@14.18.106.88:6100#CN 🇨🇳 ┇ SHADOWSOCKS-TCP-NTLS - CHINANET Guangdong province network ┇ 14.18.106.88",
-      "host": "14.18.106.88",
-      "port": 6100,
+      "original_config": "trojan://tpi0dqxy-voz1-626u-553g-vgnxjyl5fc08@127.0.0.1:4080?security=tls&type=tcp#「 GitHub Argh94 ☕ 」",
+      "host": "127.0.0.1",
+      "port": 4080,
       "status": "partial_success",
-      "ping_latency": null,
-      "tcp_latency": 232.76090621948242,
-      "speed_mbps": 0,
-      "speed_mbs": 0,
-      "success_count": 1,
-      "total_tests": 2
-    },
-    {
-      "original_config": "vmess://eyJ2IjoiMiIsInBzIjoiQ04gXHVkODNjXHVkZGU4XHVkODNjXHVkZGYzIFx1MjUwNyBWTUVTUy1UQ1AtTlRMUyAtIENoaW5hIE1vYmlsZSBDb21tdW5pY2F0aW9ucyBHcm91cCBDby4sIEx0ZC4gXHUyNTA3IDE4My4yMzYuNTEuMzYiLCJhZGQiOiIxODMuMjM2LjUxLjM2IiwicG9ydCI6NTkwMDMsImlkIjoiNDE4MDQ4YWYtYTI5My00Yjk5LTliMGMtOThjYTM1ODBkZDI0IiwiYWlkIjowLCJzY3kiOiJhdXRvIiwibmV0IjoidGNwIiwidHlwZSI6Im5vbmUifQ",
-      "host": "183.236.51.36",
-      "port": 59003,
-      "status": "partial_success",
-      "ping_latency": null,
-      "tcp_latency": 235.35537719726562,
-      "speed_mbps": 0,
-      "speed_mbs": 0,
-      "success_count": 1,
-      "total_tests": 2
+      "ping_latency": 0.035,
+      "tcp_latency": 0.07915496826171875,
+      "speed_mbps": 439.55241607277924,
+      "speed_mbs": 54.944052009097405,
+      "success_count": 2,
+      "total_tests": 3
     },
     {
       "original_config": "ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTo2aFZvd2pjYzgycDZOdTlVdk9YaGhG@39.104.68.204:8443#CN 🇨🇳 ┇ SHADOWSOCKS-TCP-NTLS - Hangzhou Alibaba Advertising Co.,Ltd. ┇ 39.104.68.204",
@@ -45,71 +33,83 @@
       "port": 8443,
       "status": "partial_success",
       "ping_latency": null,
-      "tcp_latency": 269.3953514099121,
-      "speed_mbps": 0,
-      "speed_mbs": 0,
-      "success_count": 1,
-      "total_tests": 2
+      "tcp_latency": 267.0903205871582,
+      "speed_mbps": 431.88598692057747,
+      "speed_mbs": 53.98574836507218,
+      "success_count": 2,
+      "total_tests": 3
     },
     {
       "original_config": "trojan://czareuor-ov6z-986s-tvra-bme7h7m3pxg2@127.0.0.1:2080?security=tls&type=tcp#This is a free trial project.",
       "host": "127.0.0.1",
       "port": 2080,
       "status": "partial_success",
-      "ping_latency": 0.036,
-      "tcp_latency": 0.07724761962890625,
-      "speed_mbps": 0,
-      "speed_mbs": 0,
-      "success_count": 1,
-      "total_tests": 2
+      "ping_latency": 0.034,
+      "tcp_latency": 0.08225440979003906,
+      "speed_mbps": 417.33083042817555,
+      "speed_mbs": 52.16635380352194,
+      "success_count": 2,
+      "total_tests": 3
     },
     {
       "original_config": "trojan://7tmlyxcd-ks31-huh7-ovnp-a8ssz7y49y0v@127.0.0.1:8080?security=tls&type=tcp#For enhanced GitHub access, visit Argh94 now!",
       "host": "127.0.0.1",
       "port": 8080,
       "status": "partial_success",
-      "ping_latency": 0.038,
-      "tcp_latency": 0.0762939453125,
-      "speed_mbps": 0,
-      "speed_mbs": 0,
-      "success_count": 1,
-      "total_tests": 2
+      "ping_latency": 0.034,
+      "tcp_latency": 0.08440017700195312,
+      "speed_mbps": 402.33855797870683,
+      "speed_mbs": 50.292319747338354,
+      "success_count": 2,
+      "total_tests": 3
     },
     {
       "original_config": "trojan://0zbxebq1-xm9y-duot-roo9-tvlu7gjdpicu@127.0.0.1:8081?security=tls&type=tcp#</> Collector v5.0",
       "host": "127.0.0.1",
       "port": 8081,
       "status": "partial_success",
-      "ping_latency": 0.039,
-      "tcp_latency": 0.08177757263183594,
-      "speed_mbps": 0,
-      "speed_mbs": 0,
-      "success_count": 1,
-      "total_tests": 2
-    },
-    {
-      "original_config": "trojan://tpi0dqxy-voz1-626u-553g-vgnxjyl5fc08@127.0.0.1:4080?security=tls&type=tcp#「 GitHub Argh94 ☕ 」",
-      "host": "127.0.0.1",
-      "port": 4080,
-      "status": "partial_success",
-      "ping_latency": 0.04,
-      "tcp_latency": 0.07700920104980469,
-      "speed_mbps": 0,
-      "speed_mbs": 0,
-      "success_count": 1,
-      "total_tests": 2
+      "ping_latency": 0.033,
+      "tcp_latency": 0.07176399230957031,
+      "speed_mbps": 394.8752743663137,
+      "speed_mbs": 49.35940929578921,
+      "success_count": 2,
+      "total_tests": 3
     },
     {
       "original_config": "trojan://9puhd1lm-56lb-2l3h-3rsi-45mye2ougkla@127.0.0.1:1080?security=tls&type=tcp#🕒 LAST UPDATE: 2025/12/26 | 04:04",
       "host": "127.0.0.1",
       "port": 1080,
       "status": "partial_success",
-      "ping_latency": 0.041,
-      "tcp_latency": 0.0782012939453125,
-      "speed_mbps": 0,
-      "speed_mbs": 0,
-      "success_count": 1,
-      "total_tests": 2
+      "ping_latency": 0.042,
+      "tcp_latency": 0.06890296936035156,
+      "speed_mbps": 394.44550123644666,
+      "speed_mbs": 49.30568765455583,
+      "success_count": 2,
+      "total_tests": 3
+    },
+    {
+      "original_config": "vmess://eyJ2IjoiMiIsInBzIjoiQ04gXHVkODNjXHVkZGU4XHVkODNjXHVkZGYzIFx1MjUwNyBWTUVTUy1UQ1AtTlRMUyAtIENoaW5hIE1vYmlsZSBDb21tdW5pY2F0aW9ucyBHcm91cCBDby4sIEx0ZC4gXHUyNTA3IDE4My4yMzYuNTEuMzYiLCJhZGQiOiIxODMuMjM2LjUxLjM2IiwicG9ydCI6NTkwMDMsImlkIjoiNDE4MDQ4YWYtYTI5My00Yjk5LTliMGMtOThjYTM1ODBkZDI0IiwiYWlkIjowLCJzY3kiOiJhdXRvIiwibmV0IjoidGNwIiwidHlwZSI6Im5vbmUifQ",
+      "host": "183.236.51.36",
+      "port": 59003,
+      "status": "partial_success",
+      "ping_latency": null,
+      "tcp_latency": 248.14295768737793,
+      "speed_mbps": 390.284887588443,
+      "speed_mbs": 48.78561094855537,
+      "success_count": 2,
+      "total_tests": 3
+    },
+    {
+      "original_config": "ss://YWVzLTI1Ni1nY206MTIz@14.18.106.88:6100#CN 🇨🇳 ┇ SHADOWSOCKS-TCP-NTLS - CHINANET Guangdong province network ┇ 14.18.106.88",
+      "host": "14.18.106.88",
+      "port": 6100,
+      "status": "partial_success",
+      "ping_latency": null,
+      "tcp_latency": 241.55306816101074,
+      "speed_mbps": 388.9430057091527,
+      "speed_mbs": 48.61787571364409,
+      "success_count": 2,
+      "total_tests": 3
     }
   ]
 }
