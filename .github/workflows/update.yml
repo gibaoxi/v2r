@@ -58,6 +58,13 @@ jobs:
           curl -L https://github.com/XTLS/Xray-core/releases/download/v1.8.13/Xray-linux-64.zip -o xray.zip
           unzip xray.zip -d xray
           chmod +x xray/xray
+# --------- 第二阶段：准备 Sing-box ---------
+      - name: Get latest sing-box version
+        id: get_version
+        run: |
+          LATEST_VERSION=$(curl -s https://api.github.com/repos/SagerNet/sing-box/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "最新版本: $LATEST_VERSION"
+          echo "version=$LATEST_VERSION" >> $GITHUB_OUTPUT
 
       - name: Restore sing-box cache
         id: cache-singbox
@@ -75,7 +82,7 @@ jobs:
           mkdir -p sing-box
           
           # 下载对应版本
-          wget -q https://github.com/SagerNet/sing-box/releases/download/v1.8.0/sing-box-1.8.0-linux-amd64.tar.gz" -O sing-box.tar.gz
+          wget -q "https://github.com/SagerNet/sing-box/releases/download/${{ steps.get_version.outputs.version }}/sing-box-${{ steps.get_version.outputs.version }}-linux-amd64.tar.gz" -O sing-box.tar.gz
           
           # 解压
           tar -xzf sing-box.tar.gz -C sing-box --strip-components=1
@@ -91,6 +98,7 @@ jobs:
           rm -f sing-box.tar.gz
           
           echo "✅ Sing-box 安装完成"
+
       # --------- 第三阶段：测试节点 ---------
       - name: Test nodes with Xray
         run: |
