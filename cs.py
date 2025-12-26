@@ -35,9 +35,7 @@ class NodeConnectivityTester:
         
         # TLS/HTTP测试配置
         self.tls_test_sites = [
-            "https://ip.sb", 
-            "https://www.cloudflare.com",
-            "https://www.github.com",
+            "https://ip.sb"
         ]
         
         print("=" * 60)
