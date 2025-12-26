@@ -59,11 +59,43 @@ jobs:
           unzip xray.zip -d xray
           chmod +x xray/xray
 
+- name: Restore sing-box cache
+        id: cache-singbox
+        uses: actions/cache@v4
+        with:
+          path: sing-box
+          key: sing-box-${{ steps.get_version.outputs.version }}-linux-amd64
+          restore-keys: |
+            sing-box-linux-amd64-
+
+      - name: Download and setup sing-box
+        if: steps.cache-singbox.outputs.cache-hit != 'true'
+        run: |
+          echo "⬇️ 下载 Sing-box ${{ steps.get_version.outputs.version }}..."
+          mkdir -p sing-box
+          
+          # 下载对应版本
+          wget -q "https://github.com/SagerNet/sing-box/releases/download/${{ steps.get_version.outputs.version }}/sing-box-${{ steps.get_version.outputs.version }}-linux-amd64.tar.gz" -O sing-box.tar.gz
+          
+          # 解压
+          tar -xzf sing-box.tar.gz -C sing-box --strip-components=1
+          
+          # 设置执行权限
+          chmod +x sing-box/sing-box
+          
+          # 验证安装
+          echo "🔧 Sing-box 版本信息:"
+          ./sing-box/sing-box version
+          
+          # 清理临时文件
+          rm -f sing-box.tar.gz
+          
+          echo "✅ Sing-box 安装完成"
       # --------- 第三阶段：测试节点 ---------
       - name: Test nodes with Xray
         run: |
-          chmod +x xray/xray
-          python3 v2.py
+          chmod +x sing-box/sing-box
+          python3 sb.py
 
       # --------- 第四阶段：统一提交 ---------
       - name: Commit changes
