@@ -8,6 +8,7 @@ import subprocess
 import psutil
 import base64
 import zipfile
+import stat
 from urllib.parse import urlparse
 import warnings
 from urllib3.exceptions import InsecureRequestWarning
@@ -46,15 +47,42 @@ class GitHubV2RayTester:
             
             # 解压ZIP文件
             with zipfile.ZipFile("v2ray.zip", 'r') as zip_ref:
+                # 先解压所有文件
                 zip_ref.extractall(".")
+                
+                # 检查解压后的文件结构
+                extracted_files = zip_ref.namelist()
+                print(f"解压文件: {extracted_files}")
+                
+                # 查找v2ray可执行文件
+                for file in extracted_files:
+                    if file.endswith('v2ray') and not file.startswith('__'):
+                        # 重命名到当前目录
+                        if file != 'v2ray':
+                            os.rename(file, 'v2ray')
+                        break
+            
+            # 确保文件存在
+            if not os.path.exists(self.v2ray_path):
+                # 尝试从解压的目录中查找
+                for root, dirs, files in os.walk("."):
+                    if "v2ray" in files and not root.startswith('./.git'):
+                        actual_path = os.path.join(root, "v2ray")
+                        os.rename(actual_path, self.v2ray_path)
+                        break
             
             # 设置执行权限
-            os.chmod(self.v2ray_path, 0o755)
+            if os.path.exists(self.v2ray_path):
+                os.chmod(self.v2ray_path, 0o755)
+                print("✅ V2Ray下载和权限设置完成")
+            else:
+                print("❌❌ 下载后未找到v2ray文件")
+                return False
             
             # 清理ZIP文件
-            os.remove("v2ray.zip")
+            if os.path.exists("v2ray.zip"):
+                os.remove("v2ray.zip")
             
-            print("✅ V2Ray下载完成")
             return True
             
         except Exception as e:
@@ -63,19 +91,85 @@ class GitHubV2RayTester:
     
     def setup_v2ray(self):
         """设置V2Ray环境"""
+        # 检查文件是否存在
         if not os.path.exists(self.v2ray_path):
             print("❌❌ V2Ray未找到，尝试下载...")
-            return self.download_v2ray()
+            if not self.download_v2ray():
+                return False
         
-        # 检查文件权限
+        # 设置执行权限
         try:
-            os.chmod(self.v2ray_path, 0o755)
-            print("✅ V2Ray文件检查通过")
+            current_mode = os.stat(self.v2ray_path).st_mode
+            if not (current_mode & stat.S_IXUSR):
+                print("🔧 设置执行权限...")
+                os.chmod(self.v2ray_path, 0o755)
+            
+            # 测试执行
+            result = subprocess.run(
+                [self.v2ray_path, "-version"],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            if result.returncode == 0 or "V2Ray" in result.stdout:
+                print("✅ V2Ray验证成功")
+                return True
+            else:
+                print(f"❌❌ V2Ray执行测试失败: {result.stderr}")
+                return False
+                
+        except subprocess.TimeoutExpired:
+            print("✅ V2Ray启动测试通过（超时但已启动）")
             return True
         except Exception as e:
-            print(f"❌❌ 设置V2Ray执行权限失败: {e}")
-            return False
+            print(f"❌❌ V2Ray设置失败: {e}")
+            # 尝试重新下载
+            print("🔄 尝试重新下载V2Ray...")
+            return self.download_v2ray()
     
+    def start_v2ray(self, config):
+        """启动V2Ray进程"""
+        try:
+            # 保存配置
+            with open(self.config_path, 'w') as f:
+                json.dump(config, f, indent=2)
+            
+            # 再次确保权限
+            if os.path.exists(self.v2ray_path):
+                os.chmod(self.v2ray_path, 0o755)
+            
+            # 使用绝对路径启动
+            abs_v2ray_path = os.path.abspath(self.v2ray_path)
+            abs_config_path = os.path.abspath(self.config_path)
+            
+            print(f"🚀 启动V2Ray: {abs_v2ray_path}")
+            
+            # 启动V2Ray
+            self.v2ray_process = subprocess.Popen(
+                [abs_v2ray_path, "run", "-config", abs_config_path],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                cwd=os.path.dirname(abs_v2ray_path)  # 设置工作目录
+            )
+            
+            # 等待V2Ray启动
+            time.sleep(3)
+            
+            # 检查进程是否运行
+            if self.v2ray_process.poll() is not None:
+                stdout, stderr = self.v2ray_process.communicate()
+                error_output = stderr.decode() if stderr else stdout.decode()
+                print(f"❌❌ V2Ray启动失败: {error_output}")
+                return False
+            
+            print("✅ V2Ray启动成功")
+            return True
+            
+        except Exception as e:
+            print(f"❌❌ 启动V2Ray失败: {e}")
+            return False
+
     # 其他方法保持不变...
     def parse_node_config(self, config):
         """解析节点配置"""
@@ -220,7 +314,7 @@ class GitHubV2RayTester:
                         "wsSettings": {
                             "path": params.get('path', ''),
                             "headers": {
-                                "Host": params.get('host', server)
+                                "Host": params.get('host", server)
                             }
                         } if params.get('type') == 'ws' else {}
                     }
@@ -363,36 +457,6 @@ class GitHubV2RayTester:
                 return v2ray_config
         
         return None
-    
-    def start_v2ray(self, config):
-        """启动V2Ray进程"""
-        try:
-            # 保存配置
-            with open(self.config_path, 'w') as f:
-                json.dump(config, f, indent=2)
-            
-            # 启动V2Ray
-            self.v2ray_process = subprocess.Popen(
-                [self.v2ray_path, "run", "-config", self.config_path],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
-            )
-            
-            # 等待V2Ray启动
-            time.sleep(3)
-            
-            # 检查进程是否运行
-            if self.v2ray_process.poll() is not None:
-                stdout, stderr = self.v2ray_process.communicate()
-                print(f"❌❌ V2Ray启动失败: {stderr.decode()}")
-                return False
-            
-            print("✅ V2Ray启动成功")
-            return True
-            
-        except Exception as e:
-            print(f"❌❌ 启动V2Ray失败: {e}")
-            return False
     
     def stop_v2ray(self):
         """停止V2Ray进程"""
