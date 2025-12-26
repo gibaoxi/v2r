@@ -41,11 +41,15 @@ jobs:
         [ -f "app.py" ] && python app.py || echo "app.py不存在"
         [ -f "sort.py" ] && python sort.py || echo "sort.py不存在"
         [ -f "best1.py" ] && python best.py || echo "best.py不存在"
+    - name: Install Xray
+      run: |
+        sudo bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
+        xray version
 
     - name: Run test script
       run: |
         echo "运行测试脚本..."
-        [ -f "cs.py" ] && python cs.py || echo "test.py不存在"
+        [ -f "test.py" ] && python cs.py || echo "test.py不存在"
 
     - name: Commit changes
       run: |
