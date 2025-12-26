@@ -12,9 +12,10 @@ import threading
 from multiprocessing import Process, Queue, Manager
 import tempfile
 import shutil
+import re  # 添加正则表达式支持
 
 # ========== 配置 ==========
-BATCH_SIZE = 2  # 同时测试的最大节点数（TCP/HTTP测试）
+BATCH_SIZE = 5  # 同时测试的最大节点数（TCP/HTTP测试）
 SERIAL_DOWNLOAD = True  # 串行下载测试（避免带宽竞争）
 
 XRAY_BIN = "./xray/xray"
@@ -213,7 +214,6 @@ def parse_ss_alternative(line):
             print(f"调试: 备选方法2失败: {e}")
     
     # 方法3: 使用正则表达式提取
-    import re
     pattern = r'ss://([A-Za-z0-9+/=]+)@([^:]+):(\d+)'
     match = re.search(pattern, clean_line)
     if match:
@@ -655,3 +655,79 @@ def main():
     all_results = []
     for r in final_results:
         # 查找对应的TCP和HTTP结果
+        tcp_info = next((tr for tr in tcp_results if tr["id"] == r["id"]), {})
+        http_info = next((hr for hr in http_results if hr["id"] == r["id"]), {})
+        
+        result = {
+            "line": r["line"],
+            "node": r["node"],
+            "tcp_ms": tcp_info.get("tcp_ms", -1),
+            "http_ms": http_info.get("http_ms", -1),
+            "speed": r.get("speed", 0),
+            "download_time": r.get("download_time", -1),
+            "tcp_ok": r.get("tcp_ok", False),
+            "http_ok": r.get("http_ok", False)
+        }
+        all_results.append(result)
+    
+    # 排序结果：按下载速度从高到低排序
+    all_results.sort(key=lambda x: (-x["speed"], x["tcp_ms"], x["http_ms"]))
+    
+    # 保存结果到ping.txt
+    with open("ping.txt", "w", encoding="utf-8") as f:
+        for r in all_results:
+            f.write(r["line"] + "\n")
+    
+    # 保存详细结果到detailed_results.txt
+    with open("detailed_results.txt", "w", encoding="utf-8") as f:
+        header = "节点链接\tTCP状态\tHTTP状态\tTCP延时(ms)\tHTTP延时(ms)\t速度(Mbps)\t下载1MB时间(s)"
+        f.write(header + "\n")
+        
+        for r in all_results:
+            line = r["line"]
+            line += f"\t{'✅' if r['tcp_ok'] else '❌'}\t{'✅' if r['http_ok'] else '❌'}"
+            line += f"\t{r['tcp_ms']}\t{r['http_ms']}"
+            line += f"\t{r['speed']}\t{r['download_time']}"
+            f.write(line + "\n")
+    
+    # 清理临时文件
+    shutil.rmtree(CONFIG_DIR, ignore_errors=True)
+    
+    # 统计信息
+    total_time = time.time() - start_time
+    
+    # 统计各类节点数量
+    tcp_only = sum(1 for r in all_results if r["tcp_ok"] and not r["http_ok"])
+    http_only = sum(1 for r in all_results if not r["tcp_ok"] and r["http_ok"])
+    both_ok = sum(1 for r in all_results if r["tcp_ok"] and r["http_ok"])
+    
+    print("=" * 60)
+    print(f"🎉 测试完成！")
+    print(f"📊 总节点数: {len(nodes)}")
+    print(f"✅ 符合保留条件: {len(all_results)}")
+    print(f"⏱️  总耗时: {total_time:.1f}秒")
+    print(f"📈 平均每个节点: {total_time/max(1,len(nodes)):.1f}秒")
+    
+    # 显示节点类型统计
+    print(f"📊 节点类型统计:")
+    print(f"   TCP成功+HTTP成功: {both_ok}个")
+    print(f"   TCP成功+HTTP失败: {tcp_only}个") 
+    print(f"   TCP失败+HTTP成功: {http_only}个")
+    
+    # 显示最佳节点
+    if all_results:
+        best = all_results[0]
+        print(f"🏆 最佳节点: {best['node']['server']}")
+        print(f"   TCP状态: {'✅' if best['tcp_ok'] else '❌'}")
+        print(f"   HTTP状态: {'✅' if best['http_ok'] else '❌'}")
+        if best['tcp_ok']:
+            print(f"   TCP延迟: {best['tcp_ms']}ms")
+        if best['http_ok']:
+            print(f"   HTTP延迟: {best['http_ms']}ms")
+        print(f"   下载速度: {best['speed']}Mbps")
+    
+    print(f"💾 结果已保存到 ping.txt 和 detailed_results.txt")
+
+if __name__ == "__main__":
+    main()
+
