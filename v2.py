@@ -15,7 +15,7 @@ import shutil
 
 # ========== 配置 ==========
 # 移除了测试开关，因为代码逻辑固定执行三个测试
-BATCH_SIZE = 5  # 同时测试的最大节点数（TCP/HTTP测试）
+BATCH_SIZE = 2  # 同时测试的最大节点数（TCP/HTTP测试）
 SERIAL_DOWNLOAD = True  # 串行下载测试（避免带宽竞争）
 
 XRAY_BIN = "./xray/xray"
