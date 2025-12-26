@@ -28,11 +28,11 @@ SOCKS_PORT_START = 10808
 # 测试端点
 HTTP_TEST_URLS = [
     
-    "https://cloudflare.com"
+    "https://github.com"
 ]
 
 DOWNLOAD_URLS = [
-    "https://speed.cloudflare.com/__down?bytes=1048576"
+    https://cdn.cloudflare.steamstatic.com/steam/apps/256843155/movie_max.mp4"
 ]
 
 # 超时设置
