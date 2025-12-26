@@ -14,32 +14,16 @@
   ],
   "outbounds": [
     {
-      "protocol": "vless",
+      "protocol": "shadowsocks",
       "settings": {
-        "vnext": [
+        "servers": [
           {
-            "address": "89.23.113.137",
-            "port": 47944,
-            "users": [
-              {
-                "id": "9f721f50-e015-5ea3-8bb0-22428307e9c0",
-                "encryption": "none"
-              }
-            ]
+            "address": "185.231.233.112",
+            "port": 989,
+            "method": "aes-256-cfb",
+            "password": "f8f7aCzcPKbsF8p3"
           }
         ]
-      },
-      "streamSettings": {
-        "network": "tcp",
-        "security": "reality",
-        "realitySettings": {
-          "show": false,
-          "fingerprint": "chrome",
-          "serverName": "www.ietf.org",
-          "publicKey": "_7L2lOpu_wMQLTxy0VT0WIHe8yYfBFKKq8wWWLr-4Tw",
-          "shortId": "ffffffffff",
-          "spiderX": "/"
-        }
       }
     }
   ]
