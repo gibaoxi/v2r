@@ -314,7 +314,7 @@ class GitHubV2RayTester:
                         "wsSettings": {
                             "path": params.get('path', ''),
                             "headers": {
-                                "Host": params.get('host", server)
+                                "Host": params.get("host", server)
                             }
                         } if params.get('type') == 'ws' else {}
                     }
