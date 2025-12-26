@@ -317,7 +317,7 @@ class NodeConnectivityTester:
         results = []
         
         # 逐个测试（避免并发过多）
-        for i, node in enumerate(nodes[:10], 1):  # 限制测试数量，速度测试较慢
+        for i, node in enumerate(nodes, 1):  # 限制测试数量，速度测试较慢
             result = self.test_single_node(node, i)
             results.append(result)
             
@@ -492,7 +492,7 @@ def main():
     # 在这里设置测试开关
     enable_ping = True      # Ping测试开关
     enable_tcp = True         # TCP测试开关  
-    enable_speedtest = True   # 速度测试开关
+    enable_speedtest = False   # 速度测试开关
     
     tester = NodeConnectivityTester(
         enable_ping=enable_ping, 
