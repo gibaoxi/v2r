@@ -75,7 +75,7 @@ jobs:
           mkdir -p sing-box
           
           # 下载对应版本
-          wget -q "https://github.com/SagerNet/sing-box/releases/download/${{ steps.get_version.outputs.version }}/sing-box-${{ steps.get_version.outputs.version }}-linux-amd64.tar.gz" -O sing-box.tar.gz
+          wget -q https://github.com/SagerNet/sing-box/releases/download/v1.8.0/sing-box-1.8.0-linux-amd64.tar.gz" -O sing-box.tar.gz
           
           # 解压
           tar -xzf sing-box.tar.gz -C sing-box --strip-components=1
