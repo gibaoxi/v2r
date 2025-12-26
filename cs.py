@@ -17,7 +17,7 @@ requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 class NodeConnectivityTester:
     def __init__(self, enable_ping=True, enable_tcp=True, enable_speedtest=True, enable_tls_http_test=True):
-        self.sub_file = "ping.txt"
+        self.sub_file = "all_configs.txt"  # 修改为正确的文件名
         self.ping_timeout = 3
         self.tcp_timeout = 5
         self.speedtest_timeout = 15
@@ -43,12 +43,10 @@ class NodeConnectivityTester:
         print("=" * 60)
         print("节点连通性测试")
         print("=" * 60)
-        print("测试路径说明:")
-        print("1. Ping测试: 本地 → 节点服务器")
-        print("2. TCP测试: 本地 → 节点服务器")
-        print("3. 速度测试: 本地 → 节点代理 → 目标网站")
-        print("4. TLS测试: 本地 → 节点代理 → 目标网站")
-        print("保存条件: 必须同时满足 TCP + 速度 + TLS 三个条件")
+        print("测试策略:")
+        print("1. 先测试TCP连接")
+        print("2. 只有TCP成功的节点才测试代理功能") 
+        print("3. 按下载速度排序保存")
         print("=" * 60)
         
     def read_nodes(self):
@@ -364,23 +362,28 @@ class NodeConnectivityTester:
             else:
                 print(f"  TCP(本地→节点): ❌ 失败")
         
-        # 3. 测试通过节点代理的下载速度
+        # 3. 只有TCP成功的节点才测试代理功能
         speed_success, speed_mbps, speed_mbs = False, 0, 0
-        if self.enable_speedtest:
-            speed_success, speed_mbps, speed_mbs = self.test_download_speed_via_proxy(original_config)
-            if speed_success:
-                print(f"  速度(节点→目标): ✅ {speed_mbps:.2f} Mbps")
-            else:
-                print(f"  速度(节点→目标): ❌ 失败")
-        
-        # 4. 测试通过节点代理的TLS/HTTP
         tls_success, tls_latency, tls_info = False, 0, ""
-        if self.enable_tls_http_test:
-            tls_success, tls_latency, tls_info = self.test_tls_http_via_proxy(original_config)
-            if tls_success:
-                print(f"  TLS(节点→目标): ✅ {tls_latency:.1f}ms ({tls_info})")
-            else:
-                print(f"  TLS(节点→目标): ❌ 失败 ({tls_info})")
+        
+        if tcp_success:
+            # 测试通过节点代理的下载速度
+            if self.enable_speedtest:
+                speed_success, speed_mbps, speed_mbs = self.test_download_speed_via_proxy(original_config)
+                if speed_success:
+                    print(f"  速度(节点→目标): ✅ {speed_mbps:.2f} Mbps")
+                else:
+                    print(f"  速度(节点→目标): ❌ 失败")
+            
+            # 测试通过节点代理的TLS/HTTP
+            if self.enable_tls_http_test:
+                tls_success, tls_latency, tls_info = self.test_tls_http_via_proxy(original_config)
+                if tls_success:
+                    print(f"  TLS(节点→目标): ✅ {tls_latency:.1f}ms ({tls_info})")
+                else:
+                    print(f"  TLS(节点→目标): ❌ 失败 ({tls_info})")
+        else:
+            print(f"  TCP连接失败，跳过代理测试")
         
         # 统计结果
         return {
@@ -407,51 +410,56 @@ class NodeConnectivityTester:
             return
         
         print(f"\n开始测试 {len(nodes)} 个节点...")
-        print("筛选条件: 必须同时满足 TCP连接 + 下载测试 + TLS测试 三个条件")
+        print("筛选策略: 只有TCP成功的节点才测试代理，按下载速度排序保存")
         print("=" * 50)
         
+        all_results = []
         valid_nodes = []
         
         for i, node in enumerate(nodes, 1):
             result = self.test_single_node(node, i)
+            all_results.append(result)
             
-            # 检查三个条件是否都满足
+            # 只有TCP成功且下载成功的节点才保存
             tcp_ok = result.get('tcp_success', False)
             speed_ok = result.get('speed_success', False)
-            tls_ok = result.get('tls_success', False)
             
-            if tcp_ok and tls_ok:
-                valid_nodes.append(result['original_config'])
-                print(f"  ✅ 节点满足所有条件，已保存")
+            if tcp_ok and speed_ok:
+                valid_nodes.append(result)
+                print(f"  ✅ 节点合格 (速度: {result['speed_mbps']:.2f} Mbps)")
             else:
-                # 显示具体哪些条件不满足
-                missing = []
-                if not tcp_ok: missing.append("TCP")
-                if not speed_ok: missing.append("下载")
-                if not tls_ok: missing.append("TLS")
-                print(f"  ❌ 缺少条件: {', '.join(missing)}")
+                print(f"  ❌ 节点不合格")
             
             time.sleep(1)
+        
+        # 按下载速度排序
+        valid_nodes.sort(key=lambda x: x.get('speed_mbps', 0), reverse=True)
         
         # 保存有效节点
         if valid_nodes:
             with open('ping.txt', 'w', encoding='utf-8') as f:
-                for config in valid_nodes:
-                    f.write(config + '\n')
+                for result in valid_nodes:
+                    f.write(result['original_config'] + '\n')
+            
             print(f"\n保存 {len(valid_nodes)} 个有效节点到 ping.txt")
-            print("这些节点同时满足: TCP连接成功 + 下载测试成功 + TLS测试成功")
+            print("\n🏆 节点速度排名:")
+            for i, node in enumerate(valid_nodes[:10], 1):  # 显示前10名
+                speed = node.get('speed_mbps', 0)
+                host = node.get('host', '未知')
+                print(f"  {i:2d}. {host:15} - {speed:6.2f} Mbps")
         else:
-            print("\n没有找到同时满足三个条件的节点")
+            print("\n没有找到有效节点")
         
         # 显示统计信息
         total = len(nodes)
-        valid_count = len(valid_nodes)
-        failed_count = total - valid_count
+        tcp_success_count = len([r for r in all_results if r.get('tcp_success')])
+        speed_success_count = len(valid_nodes)
         
-        print(f"\n测试完成:")
+        print(f"\n📊 测试完成:")
         print(f"总节点: {total}")
-        print(f"有效节点: {valid_count} (同时满足三个条件)")
-        print(f"不满足节点: {failed_count}")
+        print(f"TCP成功: {tcp_success_count}")
+        print(f"下载成功: {speed_success_count}")
+        print(f"有效节点: {len(valid_nodes)} (按速度排序)")
         
         return valid_nodes
 
@@ -459,21 +467,22 @@ class NodeConnectivityTester:
 def main():
     """主函数"""
     if not os.path.exists("all_configs.txt"):
-        print("错误: 找不到 ping.txt 文件")
+        print("错误: 找不到 all_configs.txt 文件")
         return
     
+    # 修改为启用所有测试
     tester = NodeConnectivityTester(
-        enable_ping=False,
-        enable_tcp=True, 
-        enable_speedtest=False,
-        enable_tls_http_test=True
+        enable_ping=True,      # 启用Ping测试
+        enable_tcp=True,       # 启用TCP测试
+        enable_speedtest=True, # 启用速度测试
+        enable_tls_http_test=True  # 启用TLS测试
     )
     
     try:
         start_time = time.time()
         results = tester.run_comprehensive_test()
         end_time = time.time()
-        print(f"\n总耗时: {end_time - start_time:.2f}秒")
+        print(f"\n⏱️ 总耗时: {end_time - start_time:.2f}秒")
         
     except Exception as e:
         print(f"测试错误: {e}")
