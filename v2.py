@@ -19,7 +19,7 @@ HTTP_TEST = True
 DOWNLOAD_TEST = True
 
 # 批量测试控制
-BATCH_SIZE = 2  # 同时测试的最大节点数（TCP/HTTP测试）
+BATCH_SIZE = 5  # 同时测试的最大节点数（TCP/HTTP测试）
 SERIAL_DOWNLOAD = True  # 串行下载测试（避免带宽竞争）
 
 XRAY_BIN = "./xray/xray"
@@ -78,52 +78,87 @@ def parse_node(line):
             return None
 
     if line.startswith("ss://"):
+        print(f"调试: 开始解析SS链接: {line}")
+        
         # 移除#号及后面的注释部分
         if '#' in line:
             line = line.split('#')[0]
+            print(f"调试: 移除注释后: {line}")
             
-        raw = line[5:]
-        if "@" not in raw:
+        # 关键改进：先分离Base64部分和服务器部分
+        clean_line = line[5:]  # 去掉"ss://"
+        print(f"调试: 去掉'ss://'后: {clean_line}")
+        
+        if "@" not in clean_line:
+            print("调试: 没有@符号，尝试Base64解码整个字符串")
             try:
                 # 尝试Base64解码
-                raw = base64.b64decode(raw + "==").decode('utf-8')
-            except:
+                clean_line = base64.b64decode(clean_line + "==").decode('utf-8')
+                print(f"调试: Base64解码后: {clean_line}")
+            except Exception as e:
+                print(f"调试: UTF-8解码失败: {e}")
                 try:
                     # 如果UTF-8解码失败，尝试latin-1
-                    raw = base64.b64decode(raw + "==").decode('latin-1')
-                except:
+                    clean_line = base64.b64decode(clean_line + "==").decode('latin-1')
+                    print(f"调试: Latin-1解码后: {clean_line}")
+                except Exception as e2:
+                    print(f"调试: 所有解码尝试都失败: {e2}")
                     return None
         
         try:
-            if "@" not in raw:
+            if "@" not in clean_line:
+                print(f"调试: 解码后仍然没有@符号: {clean_line}")
                 return None
                 
-            method_pass, server = raw.split("@", 1)
-            if ":" not in method_pass:
+            # 关键改进：先分离Base64部分和服务器部分
+            base64_part = clean_line.split('@')[0]
+            server_part = clean_line.split('@')[1]
+            print(f"调试: Base64部分: {base64_part}")
+            print(f"调试: 服务器部分: {server_part}")
+            
+            # 解码Base64部分
+            padding_needed = len(base64_part) % 4
+            if padding_needed:
+                base64_part += '=' * (4 - padding_needed)
+                print(f"调试: 添加padding后: {base64_part}")
+                
+            decoded = base64.b64decode(base64_part).decode('utf-8')
+            print(f"调试: Base64解码结果: {decoded}")
+            
+            if ":" not in decoded:
+                print(f"调试: 解码结果中没有冒号: {decoded}")
                 return None
                 
-            method, password = method_pass.split(":", 1)
+            method, password = decoded.split(":", 1)
+            print(f"调试: 方法: {method}, 密码: {password}")
             
             # 处理服务器部分（可能有多个冒号的情况）
             # 移除可能存在的路径部分
-            if "/" in server:
-                server = server.split("/")[0]
+            if "/" in server_part:
+                server_part = server_part.split("/")[0]
+                print(f"调试: 移除路径后服务器部分: {server_part}")
                 
-            server_parts = server.split(":")
+            server_parts = server_part.split(":")
             if len(server_parts) < 2:
+                print(f"调试: 服务器部分格式错误: {server_part}")
                 return None
                 
             host = server_parts[0]
             port = int(server_parts[1])
+            print(f"调试: 主机: {host}, 端口: {port}")
             
-            return {
+            result = {
                 "type": "ss",
                 "server": host,
                 "port": port,
                 "method": method,
                 "password": password
             }
-        except (ValueError, IndexError, UnicodeDecodeError):
+            print(f"调试: SS解析成功: {result}")
+            return result
+            
+        except (ValueError, IndexError, UnicodeDecodeError) as e:
+            print(f"调试: SS解析过程出错: {e}")
             return None
 
     if line.startswith("hy2://"):
@@ -224,10 +259,12 @@ def gen_config(node, socks_port):
             }
         }
         
+        # TLS设置
         if node["security"] == "tls":
             outbound["streamSettings"]["tlsSettings"] = {
                 "serverName": node.get("sni", node["server"])
             }
+        # REALITY设置
         elif node["security"] == "reality":
             outbound["streamSettings"]["realitySettings"] = {
                 "show": False,
@@ -238,6 +275,7 @@ def gen_config(node, socks_port):
                 "spiderX": node.get("spiderX", "/")
             }
         
+        # WebSocket设置
         if node["network"] == "ws":
             outbound["streamSettings"]["wsSettings"] = {
                 "path": node.get("path", ""),
@@ -604,32 +642,4 @@ def main():
                 line += f"\t{r['http_ms']}"
             if DOWNLOAD_TEST:
                 line += f"\t{r['speed']}\t{r['download_time']}"
-            f.write(line + "\n")
-    
-    # 清理临时文件
-    shutil.rmtree(CONFIG_DIR, ignore_errors=True)
-    
-    # 统计信息
-    total_time = time.time() - start_time
-    print("=" * 60)
-    print(f"🎉 测试完成！")
-    print(f"📊 总节点数: {len(nodes)}")
-    print(f"✅ 通过测试: {len(all_results)}")
-    print(f"⏱️  总耗时: {total_time:.1f}秒")
-    print(f"📈 平均每个节点: {total_time/max(1,len(nodes)):.1f}秒")
-    
-    # 显示最佳节点
-    if all_results:
-        best = all_results[0]
-        print(f"🏆 最佳节点: {best['node']['server']}")
-        if TCP_TEST:
-            print(f"   TCP延迟: {best['tcp_ms']}ms")
-        if HTTP_TEST:
-            print(f"   HTTP延迟: {best['http_ms']}ms")
-        if DOWNLOAD_TEST:
-            print(f"   下载速度: {best['speed']}Mbps")
-    
-    print(f"💾 结果已保存到 ping.txt 和 detailed_results.txt")
-
-if __name__ == "__main__":
-    main()
+            f.write(line
