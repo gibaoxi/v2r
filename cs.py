@@ -581,7 +581,7 @@ def main():
     tester = NodeConnectivityTester(
         enable_ping=enable_ping, 
         enable_tcp=enable_tcp, 
-        enable_speedtest=enable_speedtest
+        enable_speedtest=enable_speedtest,
         enable_url_test=enable_url_test)
     results = tester.run_comprehensive_test()
 
