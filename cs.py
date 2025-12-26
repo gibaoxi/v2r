@@ -582,7 +582,7 @@ def main():
         enable_ping=enable_ping, 
         enable_tcp=enable_tcp, 
         enable_speedtest=enable_speedtest
-        enable_url_test=enable_url_test
+        enable_url_test=enable_url_test)
     results = tester.run_comprehensive_test()
 
 if __name__ == "__main__":
