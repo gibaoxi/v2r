@@ -5,10 +5,8 @@
 Xray 节点可用性测试（安全版）
 
 判定规则：
-1. TCP 直连测试 2 次（都成功）
-2. HTTP 测试：从 N 个 URL 中随机选 2 个
-   - 使用 HEAD
-   - 任意 1 个成功即可
+1. TCP 直连测试 2 次（任意 1 次成功即可）
+2. HTTP 测试：从 N 个 URL 中随机选 2 个（任意 1 个成功即可）
 
 设计目标：
 - 可在 GitHub Actions 长期运行
@@ -117,31 +115,53 @@ def parse_node(line: str):
         if line.startswith("ss://"):
             # 处理 shadowsocks 协议
             try:
-                # 去掉协议头
+                # 去掉协议头和可能存在的标签
                 ss_part = line[5:]
                 if "#" in ss_part:
                     ss_part = ss_part.split("#")[0]
-                    
-                # 处理 base64 编码
-                if "@" in ss_part:
-                    # 标准格式: method:password@server:port
-                    if ":" not in ss_part.split("@")[0]:
-                        # base64 编码的用户信息
-                        user_info = base64.b64decode(ss_part.split("@")[0] + "==").decode()
-                        server_part = ss_part.split("@")[1]
-                        method, password = user_info.split(":", 1)
-                    else:
-                        # 明文格式
-                        user_server = ss_part.split("//")[-1]
-                        method_password, server_port = user_server.split("@", 1)
-                        method, password = method_password.split(":", 1)
-                else:
-                    # 整个都是 base64
-                    decoded = base64.b64decode(ss_part.split("#")[0] + "==").decode()
-                    method_password, server_port = decoded.rsplit("@", 1)
-                    method, password = method_password.split(":", 1)
                 
-                server, port = server_port.split(":", 1)
+                # 检查是否是 base64 编码的完整格式
+                if "@" not in ss_part and ":" not in ss_part:
+                    # 整个是 base64 编码
+                    decoded = base64.b64decode(ss_part + "==").decode('utf-8')
+                    if "@" in decoded:
+                        method_password, server_port = decoded.split("@", 1)
+                        method, password = method_password.split(":", 1)
+                        server, port = server_port.split(":", 1)
+                    else:
+                        # 可能是 legacy 格式
+                        parts = decoded.split(":")
+                        if len(parts) >= 3:
+                            method = parts[0]
+                            password = parts[1]
+                            server = parts[2]
+                            port = parts[3] if len(parts) > 3 else "8388"
+                        else:
+                            return None
+                else:
+                    # 标准格式: ss://method:password@server:port
+                    if "@" in ss_part:
+                        user_info, server_port = ss_part.split("@", 1)
+                        if ":" in user_info:
+                            # 明文格式
+                            method, password = user_info.split(":", 1)
+                        else:
+                            # base64 编码的用户信息
+                            user_info_decoded = base64.b64decode(user_info + "==").decode('utf-8')
+                            method, password = user_info_decoded.split(":", 1)
+                        
+                        server, port = server_port.split(":", 1)
+                    else:
+                        # 没有 @，可能是 legacy 格式
+                        parts = ss_part.split(":")
+                        if len(parts) >= 3:
+                            method = parts[0]
+                            password = parts[1]
+                            server = parts[2]
+                            port = parts[3] if len(parts) > 3 else "8388"
+                        else:
+                            return None
+                
                 port = int(port)
                 
                 return {
@@ -152,11 +172,11 @@ def parse_node(line: str):
                     "password": password
                 }
             except Exception as e:
-                log.debug(f"SS 节点解析失败: {e}")
+                log.debug(f"SS 节点解析失败 {line[:50]}...: {e}")
                 return None
                 
     except Exception as e:
-        log.debug(f"节点解析失败: {e}")
+        log.debug(f"节点解析失败 {line[:50]}...: {e}")
 
     return None
 
@@ -168,9 +188,12 @@ def build_xray_config(node: dict, socks_port: int) -> dict:
     """
     构造最小可用 Xray 配置
     """
-    return {
+    inbound_tag = "socks-in"
+    
+    config = {
         "log": {"loglevel": "error"},
         "inbounds": [{
+            "tag": inbound_tag,
             "port": socks_port,
             "listen": "127.0.0.1",
             "protocol": "socks",
@@ -186,11 +209,13 @@ def build_xray_config(node: dict, socks_port: int) -> dict:
         "routing": {
             "rules": [{
                 "type": "field",
-                "outboundTag": "proxy",
-                "inboundTag": ["socks"]
+                "inboundTag": [inbound_tag],
+                "outboundTag": "proxy"
             }]
         }
     }
+    
+    return config
 
 def build_outbound(n: dict) -> dict:
     """
@@ -216,7 +241,7 @@ def build_outbound(n: dict) -> dict:
             }
         }
         
-        if n["tls"]:
+        if n.get("tls"):
             outbound["streamSettings"]["security"] = "tls"
             outbound["streamSettings"]["tlsSettings"] = {
                 "serverName": n["server"]
@@ -244,19 +269,20 @@ def build_outbound(n: dict) -> dict:
             }
         }
 
-        if n["security"] in ("tls", "reality"):
-            outbound["streamSettings"]["security"] = n["security"]
+        security = n.get("security", "")
+        if security in ("tls", "reality"):
+            outbound["streamSettings"]["security"] = security
             outbound["streamSettings"]["tlsSettings"] = {
-                "serverName": n["sni"]
+                "serverName": n.get("sni", n["server"])
             }
             
-            if n["security"] == "reality":
+            if security == "reality":
                 outbound["streamSettings"]["realitySettings"] = {
                     "show": False,
                     "fingerprint": "chrome",
-                    "serverName": n["sni"],
-                    "publicKey": n["public_key"],
-                    "shortId": n["short_id"]
+                    "serverName": n.get("sni", n["server"]),
+                    "publicKey": n.get("public_key", ""),
+                    "shortId": n.get("short_id", "")
                 }
 
         return outbound
@@ -289,7 +315,8 @@ def build_outbound(n: dict) -> dict:
                     "address": n["server"],
                     "port": n["port"],
                     "method": n["method"],
-                    "password": n["password"]
+                    "password": n["password"],
+                    "ota": False
                 }]
             }
         }
@@ -302,22 +329,24 @@ def build_outbound(n: dict) -> dict:
 
 def tcp_test_twice(host: str, port: int) -> bool:
     """
-    对节点做两次 TCP connect
+    对节点做两次 TCP connect，任意一次成功即可
     """
     for i in range(2):
         try:
             s = socket.create_connection((host, port), timeout=TCP_TIMEOUT)
             s.close()
-            if i == 0:  # 第一次成功后稍作延迟
-                time.sleep(TCP_INTERVAL)
+            log.debug(f"TCP 第 {i+1} 次成功: {host}:{port}")
+            return True
         except Exception as e:
             log.debug(f"TCP 第 {i+1} 次失败 {host}:{port} - {e}")
-            return False
-    return True
+            if i == 0:  # 第一次失败后等待一下再试第二次
+                time.sleep(TCP_INTERVAL)
+    
+    return False
 
 def http_test_random_two(socks_port: int) -> bool:
     """
-    从 URL 列表中随机选 2 个进行 HEAD 测试
+    从 URL 列表中随机选 2 个进行测试，任意一个成功即可
     """
     urls = random.sample(HTTP_TEST_URLS, 2)
     proxies = {
@@ -390,6 +419,7 @@ def test_single_node(index: int, line: str, node: dict):
     
     log.info(f"测试节点 {index+1}: {node['server']}:{node['port']} ({node['type']})")
 
+    process = None
     try:
         # 生成 Xray 配置
         config = build_xray_config(node, socks_port)
@@ -427,14 +457,15 @@ def test_single_node(index: int, line: str, node: dict):
         
     finally:
         # 清理进程
-        try:
-            process.terminate()
-            process.wait(timeout=3)
-        except:
+        if process:
             try:
-                process.kill()
+                process.terminate()
+                process.wait(timeout=3)
             except:
-                pass
+                try:
+                    process.kill()
+                except:
+                    pass
         
         # 删除临时配置文件
         try:
@@ -472,6 +503,7 @@ def main():
 
     ok_nodes = []
     tested_count = 0
+    node_types = {}
 
     for idx, line in enumerate(lines):
         if not line or len(line) < 10:  # 跳过过短的行
@@ -481,6 +513,10 @@ def main():
         if not node:
             log.debug(f"无法解析节点: {line[:50]}...")
             continue
+
+        # 统计节点类型
+        node_type = node["type"]
+        node_types[node_type] = node_types.get(node_type, 0) + 1
 
         tested_count += 1
         result = test_single_node(idx, line, node)
@@ -500,6 +536,8 @@ def main():
     except:
         pass
 
+    # 输出统计信息
+    log.info(f"节点类型统计: {node_types}")
     log.info(f"测试完成: 共测试 {tested_count} 个节点，可用 {len(ok_nodes)} 个")
 
 if __name__ == "__main__":
