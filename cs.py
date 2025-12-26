@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 
 class NodeConnectivityTester:
     def __init__(self, enable_ping=True, enable_tcp=True, enable_speedtest=True):
-        self.sub_file = "ping.txt"
+        self.sub_file = "all_configs.txt"
         self.ping_timeout = 3
         self.tcp_timeout = 5
         self.speedtest_timeout = 10
@@ -482,7 +482,7 @@ class NodeConnectivityTester:
 def main():
     """主函数"""
     # 检查文件是否存在
-    if not os.path.exists("sub.txt"):
+    if not os.path.exists("all_configs.txt"):
         print("❌❌❌❌ 请确保 sub.txt 文件存在于当前目录")
         print("📁📁📁📁 当前目录文件:")
         for file in os.listdir('.'):
@@ -490,8 +490,8 @@ def main():
         return
     
     # 在这里设置测试开关
-    enable_ping = False      # Ping测试开关
-    enable_tcp = False         # TCP测试开关  
+    enable_ping = True      # Ping测试开关
+    enable_tcp = True         # TCP测试开关  
     enable_speedtest = True   # 速度测试开关
     
     tester = NodeConnectivityTester(
