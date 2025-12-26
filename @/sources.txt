@@ -1,6 +1,1 @@
-https://raw.githubusercontent.com/gibaoxi/V2Ray-Vault/refs/heads/main/data/sub/countries/KR.txt
-https://raw.githubusercontent.com/gibaoxi/V2Ray-Vault/refs/heads/main/data/sub/countries/SG.txt
-https://raw.githubusercontent.com/gibaoxi/V2Ray-Vault/refs/heads/main/data/sub/countries/JP.txt
-https://raw.githubusercontent.com/gibaoxi/V2Ray-Vault/refs/heads/main/data/sub/countries/HK.txt
-https://raw.githubusercontent.com/gibaoxi/V2Ray-Vault/refs/heads/main/data/sub/countries/TW.txt
 https://raw.githubusercontent.com/gibaoxi/V2Ray-Vault/refs/heads/main/data/sub/countries/CN.txt
