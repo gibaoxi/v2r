@@ -520,13 +520,13 @@ def main():
         log.error(f"Xray 不存在: {XRAY_BIN}")
         return
     
-    if not os.path.exists("sub.txt"):
+    if not os.path.exists("all_configs.txt"):
         log.error("订阅文件不存在")
         return
     
     # 读取订阅
     try:
-        with open("all:configs.txt", "r", encoding="utf-8") as f:
+        with open("all_configs.txt", "r", encoding="utf-8") as f:
             content = f.read()
         
         lines = decode_subscription(content)
