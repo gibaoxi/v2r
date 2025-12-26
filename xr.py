@@ -37,7 +37,7 @@ HTTP_TEST_URLS = [
     "http://www.google.com/generate_204",
     "http://www.apple.com/library/test/success.html",
     "http://connectivitycheck.android.com/generate_204",
-    "http://www.msftconnecttest.com/connecttest.txt",
+    "https://ms.bdstatic.com/se/static/wiseindex/img/favicon64_587c374.ico",
 ]
 
 # ==========================
@@ -488,13 +488,13 @@ def main():
         log.error(f"Xray 不存在: {XRAY_BIN}")
         return
     
-    if not os.path.exists("sub.txt"):
+    if not os.path.exists("all_configs.txt"):
         log.error("订阅文件不存在")
         return
     
     # 读取订阅
     try:
-        with open("sub.txt", "r", encoding="utf-8") as f:
+        with open("all_configs.txt", "r", encoding="utf-8") as f:
             content = f.read()
         
         lines = decode_subscription(content)
