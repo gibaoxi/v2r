@@ -575,7 +575,7 @@ def main():
     # 在这里设置测试开关
     enable_ping = False      # Ping测试开关
     enable_tcp = True        # TCP测试开关  
-    enable_speedtest = flase
+    enable_speedtest = False
     enable_url_test=True   # 速度测试开关
     
     tester = NodeConnectivityTester(
