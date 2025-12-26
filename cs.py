@@ -17,7 +17,7 @@ requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 class NodeConnectivityTester:
     def __init__(self, enable_ping=True, enable_tcp=True, enable_speedtest=True, enable_tls_http_test=True):
-        self.sub_file = "ping.txt"
+        self.sub_file = "all_configs.txt"
         self.ping_timeout = 3
         self.tcp_timeout = 5
         self.speedtest_timeout = 15
@@ -421,7 +421,7 @@ class NodeConnectivityTester:
             speed_ok = result.get('speed_success', False)
             tls_ok = result.get('tls_success', False)
             
-            if tcp_ok and speed_ok and tls_ok:
+            if tcp_ok and speed_ok:
                 valid_nodes.append(result['original_config'])
                 print(f"  ✅ 节点满足所有条件，已保存")
             else:
@@ -459,15 +459,15 @@ class NodeConnectivityTester:
 
 def main():
     """主函数"""
-    if not os.path.exists("ping.txt"):
+    if not os.path.exists("all_configs.txt"):
         print("错误: 找不到 ping.txt 文件")
         return
     
     tester = NodeConnectivityTester(
-        enable_ping=True,
+        enable_ping=False,
         enable_tcp=True, 
         enable_speedtest=True,
-        enable_tls_http_test=True
+        enable_tls_http_test=False
     )
     
     try:
