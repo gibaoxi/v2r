@@ -12,49 +12,24 @@
   ],
   "outbounds": [
     {
-      "protocol": "vmess",
+      "protocol": "vless",
       "settings": {
         "vnext": [
           {
-            "address": "47.244.120.197",
-            "port": 44867,
+            "address": "89.23.113.137",
+            "port": 47944,
             "users": [
               {
-                "id": "845e6b08-2919-4290-ade0-5dc7dcea59ca",
-                "alterId": 0,
-                "security": "auto"
+                "id": "9f721f50-e015-5ea3-8bb0-22428307e9c0",
+                "encryption": "none"
               }
             ]
           }
         ]
       },
       "streamSettings": {
-        "network": "ws",
-        "security": "",
-        "tlsSettings": {},
-        "wsSettings": {
-          "path": "/arki?ed=2048",
-          "headers": {
-            "Host": ""
-          }
-        }
+        "network": "tcp"
       }
-    },
-    {
-      "protocol": "freedom",
-      "tag": "direct"
     }
-  ],
-  "routing": {
-    "domainStrategy": "IPIfNonMatch",
-    "rules": [
-      {
-        "type": "field",
-        "ip": [
-          "geoip:private"
-        ],
-        "outboundTag": "direct"
-      }
-    ]
-  }
+  ]
 }
