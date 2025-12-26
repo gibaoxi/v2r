@@ -17,7 +17,7 @@ HTTP_TEST_URLS = [
     "https://cloudflare.com"
 ]
 
-DOWNLOAD_URL = "https://speed.cloudflare.com/__down?bytes=800000"
+DOWNLOAD_URL = "https://speed.cloudflare.com/__down?bytes=1048576"  # 1MB = 1048576 bytes
 
 
 # ---------------- TCP 测试 ----------------
@@ -214,14 +214,24 @@ def http_test():
         "http": f"socks5h://127.0.0.1:{SOCKS_PORT}",
         "https": f"socks5h://127.0.0.1:{SOCKS_PORT}"
     }
+    
+    best_http_delay = -1  # 初始化最佳HTTP延时
+    
     for u in HTTP_TEST_URLS:
         try:
+            start_time = time.time()
             r = requests.get(u, proxies=proxies, timeout=8)
+            http_delay = int((time.time() - start_time) * 1000)  # 计算延时（毫秒）
+            
             if r.status_code in (200, 204):
-                return True
+                # 记录最佳HTTP延时（最小的延时）
+                if best_http_delay == -1 or http_delay < best_http_delay:
+                    best_http_delay = http_delay
+                return True, best_http_delay
         except:
             pass
-    return False
+    
+    return False, -1
 
 
 # ---------------- 下载测速 ----------------
@@ -234,14 +244,24 @@ def speed_test():
         start = time.time()
         r = requests.get(DOWNLOAD_URL, proxies=proxies, stream=True, timeout=15)
         size = 0
+        
+        # 记录开始下载的时间
+        download_start = time.time()
+        
         for c in r.iter_content(8192):
             size += len(c)
-            if size > 800000:
+            if size >= 1048576:  # 下载1MB后停止
                 break
-        t = time.time() - start
-        return round((size * 8) / (t * 1024 * 1024), 2)
+        
+        # 计算下载1MB所需的时间
+        download_time = time.time() - download_start
+        
+        # 计算下载速度（Mbps）
+        speed = round((size * 8) / (download_time * 1024 * 1024), 2) if download_time > 0 else 0
+        
+        return speed, round(download_time, 2)
     except:
-        return 0
+        return 0, -1  # 下载失败
 
 
 # ---------------- 主流程 ----------------
@@ -271,27 +291,40 @@ with open("sub.txt", encoding="utf-8") as f:
             p = subprocess.Popen([XRAY_BIN, "run", "-config", CONFIG])
             time.sleep(3)
 
-            if not http_test():
+            http_ok, http_ms = http_test()
+            if not http_ok:
                 p.terminate()
                 print(f"HTTP测试失败: {node['server']}")
                 continue
 
-            speed = speed_test()
+            speed, download_time = speed_test()
             p.terminate()
 
-            if speed > 0.1:
-                results.append((line, tcp_ms, speed))
-                print(f"节点可用: {node['server']}, 延迟: {tcp_ms}ms, 速度: {speed}Mbps")
+            # 只要下载成功（不管速度多慢）就保留节点
+            if download_time > 0:
+                # 保存节点链接、TCP延时、HTTP延时、下载速度和下载时间
+                results.append((line, tcp_ms, http_ms, speed, download_time))
+                print(f"节点可用: {node['server']}, TCP延时: {tcp_ms}ms, HTTP延时: {http_ms}ms, 速度: {speed}Mbps, 下载1MB时间: {download_time}s")
+            else:
+                print(f"下载测试失败: {node['server']}")
                 
         except Exception as e:
             print(f"处理节点时出错: {line[:30]}... 错误: {str(e)}")
             continue
 
-# 排序：速度优先，其次延迟
-results.sort(key=lambda x: (-x[2], x[1]))
+# 排序：速度优先，其次TCP延迟，然后HTTP延迟
+results.sort(key=lambda x: (-x[3], x[1], x[2]))
 
+# 保存结果到ping.txt
 with open("ping.txt", "w", encoding="utf-8") as f:
     for r in results:
         f.write(r[0] + "\n")
 
-print("可用节点数:", len(results))
+# 保存详细结果到detailed_results.txt
+with open("detailed_results.txt", "w", encoding="utf-8") as f:
+    f.write("节点链接\tTCP延时(ms)\tHTTP延时(ms)\t速度(Mbps)\t下载1MB时间(s)\n")
+    for r in results:
+        f.write(f"{r[0]}\t{r[1]}\t{r[2]}\t{r[3]}\t{r[4]}\n")
+
+print(f"可用节点数: {len(results)}")
+print("详细结果已保存到 detailed_results.txt")
