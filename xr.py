@@ -526,7 +526,7 @@ def main():
     
     # 读取订阅
     try:
-        with open("sub.txt", "r", encoding="utf-8") as f:
+        with open("all:configs.txt", "r", encoding="utf-8") as f:
             content = f.read()
         
         lines = decode_subscription(content)
