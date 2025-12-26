@@ -1,0 +1,60 @@
+{
+  "inbounds": [
+    {
+      "port": 10808,
+      "listen": "127.0.0.1",
+      "protocol": "socks",
+      "settings": {
+        "udp": true,
+        "auth": "noauth"
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "protocol": "vmess",
+      "settings": {
+        "vnext": [
+          {
+            "address": "47.244.120.197",
+            "port": 44867,
+            "users": [
+              {
+                "id": "845e6b08-2919-4290-ade0-5dc7dcea59ca",
+                "alterId": 0,
+                "security": "auto"
+              }
+            ]
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "ws",
+        "security": "",
+        "tlsSettings": {},
+        "wsSettings": {
+          "path": "/arki?ed=2048",
+          "headers": {
+            "Host": ""
+          }
+        }
+      }
+    },
+    {
+      "protocol": "freedom",
+      "tag": "direct"
+    }
+  ],
+  "routing": {
+    "domainStrategy": "IPIfNonMatch",
+    "rules": [
+      {
+        "type": "field",
+        "ip": [
+          "geoip:private"
+        ],
+        "outboundTag": "direct"
+      }
+    ]
+  }
+}
