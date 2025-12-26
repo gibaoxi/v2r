@@ -32,7 +32,7 @@ HTTP_TEST_URLS = [
 ]
 
 DOWNLOAD_URLS = [
-    https://cdn.cloudflare.steamstatic.com/steam/apps/256843155/movie_max.mp4"
+"https://cdn.cloudflare.steamstatic.com/steam/apps/256843155/movie_max.mp4"
 ]
 
 # 超时设置
