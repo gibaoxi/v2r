@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 
 class NodeConnectivityTester:
     def __init__(self, enable_ping=True, enable_tcp=True, enable_speedtest=True):
-        self.sub_file = "all_configs.txt"
+        self.sub_file = "ping.txt"
         self.ping_timeout = 3
         self.tcp_timeout = 5
         self.speedtest_timeout = 10
@@ -492,7 +492,7 @@ def main():
     # 在这里设置测试开关
     enable_ping = True      # Ping测试开关
     enable_tcp = True         # TCP测试开关  
-    enable_speedtest = False   # 速度测试开关
+    enable_speedtest = True   # 速度测试开关
     
     tester = NodeConnectivityTester(
         enable_ping=enable_ping, 
