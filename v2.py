@@ -643,6 +643,31 @@ def main():
             if DOWNLOAD_TEST:
                 line += f"\t{r['speed']}\t{r['download_time']}"
             f.write(line + "\n")
+    
+    # 清理临时文件
+    shutil.rmtree(CONFIG_DIR, ignore_errors=True)
+    
+    # 统计信息
+    total_time = time.time() - start_time
+    print("=" * 60)
+    print(f"🎉 测试完成！")
+    print(f"📊 总节点数: {len(nodes)}")
+    print(f"✅ 通过测试: {len(all_results)}")
+    print(f"⏱️  总耗时: {total_time:.1f}秒")
+    print(f"📈 平均每个节点: {total_time/max(1,len(nodes)):.1f}秒")
+    
+    # 显示最佳节点
+    if all_results:
+        best = all_results[0]
+        print(f"🏆 最佳节点: {best['node']['server']}")
+        if TCP_TEST:
+            print(f"   TCP延迟: {best['tcp_ms']}ms")
+        if HTTP_TEST:
+            print(f"   HTTP延迟: {best['http_ms']}ms")
+        if DOWNLOAD_TEST:
+            print(f"   下载速度: {best['speed']}Mbps")
+    
+    print(f"💾 结果已保存到 ping.txt 和 detailed_results.txt")
 
-print(f"可用节点数: {len(all_results)}")
-print("详细结果已保存到 detailed_results.txt")
+if __name__ == "__main__":
+    main()
