@@ -6,7 +6,6 @@ import subprocess
 import json
 import re
 import requests
-import ssl
 from urllib.parse import urlparse
 import base64
 import warnings
@@ -21,17 +20,18 @@ class NodeConnectivityTester:
         self.sub_file = "ping.txt"
         self.ping_timeout = 3
         self.tcp_timeout = 5
-        self.speedtest_timeout = 10
+        self.speedtest_timeout = 15  # 增加超时时间
         self.tls_http_timeout = 8
         self.enable_ping = enable_ping
         self.enable_tcp = enable_tcp
         self.enable_speedtest = enable_speedtest
         self.enable_tls_http_test = enable_tls_http_test
         
-        # 速度测试配置
+        # 速度测试配置 - 使用小文件测试
         self.speedtest_files = [
-            "https://speed.cloudflare.com/__down?bytes=10000000",
-            "https://proof.ovh.net/files/10Mb.dat",
+            "https://speed.cloudflare.com/__down?bytes=1000000",  # 1MB
+            "http://httpbin.org/bytes/500000",  # 500KB
+            "https://httpbin.org/bytes/500000",  # 500KB
         ]
         
         # TLS/HTTP测试配置
@@ -40,8 +40,6 @@ class NodeConnectivityTester:
             "https://www.github.com", 
             "https://www.cloudflare.com",
             "https://www.baidu.com",
-            "https://1.1.1.1",
-            "https://8.8.8.8"
         ]
         
     def read_nodes(self):
@@ -143,22 +141,55 @@ class NodeConnectivityTester:
         except:
             return False, None
     
-    def test_download_speed(self, host):
-        """测试下载速度"""
+    def setup_proxy_from_config(self, node_config):
+        """根据节点配置设置代理"""
+        try:
+            if node_config.startswith('vmess://'):
+                # 简化处理：对于VMess等复杂协议，直接返回None，使用直接连接
+                return None
+            elif node_config.startswith('http://') or node_config.startswith('https://'):
+                # HTTP代理
+                return {
+                    'http': node_config,
+                    'https': node_config
+                }
+            elif node_config.startswith('socks5://') or node_config.startswith('socks4://'):
+                # SOCKS代理
+                return {
+                    'http': node_config,
+                    'https': node_config
+                }
+            else:
+                # 其他协议暂不支持代理测试
+                return None
+        except Exception:
+            return None
+    
+    def test_download_speed_via_proxy(self, node_config):
+        """通过节点代理测试下载速度"""
         if not self.enable_speedtest:
             return False, 0, 0
             
         try:
+            # 设置代理
+            proxies = self.setup_proxy_from_config(node_config)
+            
+            if proxies is None:
+                # 如果不支持代理测试，使用直接连接
+                return self.test_download_speed_direct()
+            
             test_url = self.speedtest_files[0]
             start_time = time.time()
             
             # 使用session来复用连接
             session = requests.Session()
             session.verify = False  # 禁用证书验证
+            session.proxies = proxies
+            
             response = session.get(test_url, timeout=self.speedtest_timeout, stream=True)
             
             total_size = 0
-            chunk_size = 10240
+            chunk_size = 8192  # 8KB
             
             for chunk in response.iter_content(chunk_size=chunk_size):
                 total_size += len(chunk)
@@ -167,7 +198,8 @@ class NodeConnectivityTester:
                 if elapsed > self.speedtest_timeout:
                     break
                     
-                if total_size > 5 * 1024 * 1024:
+                # 下载1MB数据就足够测试速度
+                if total_size > 1 * 1024 * 1024:
                     break
             
             end_time = time.time()
@@ -180,6 +212,33 @@ class NodeConnectivityTester:
             else:
                 return False, 0, 0
                 
+        except Exception as e:
+            print(f"    代理下载错误: {e}")
+            return False, 0, 0
+    
+    def test_download_speed_direct(self):
+        """直接下载速度测试（备用）"""
+        try:
+            test_url = self.speedtest_files[1]  # 使用较小的文件
+            start_time = time.time()
+            
+            session = requests.Session()
+            session.verify = False
+            response = session.get(test_url, timeout=10, stream=True)
+            
+            total_size = 0
+            for chunk in response.iter_content(chunk_size=8192):
+                total_size += len(chunk)
+                if time.time() - start_time > 10:
+                    break
+                if total_size > 500000:  # 500KB
+                    break
+            
+            download_time = time.time() - start_time
+            if download_time > 0 and total_size > 0:
+                speed_mbps = (total_size * 8) / (download_time * 1024 * 1024)
+                return True, speed_mbps, speed_mbps / 8
+            return False, 0, 0
         except Exception:
             return False, 0, 0
 
@@ -194,29 +253,22 @@ class NodeConnectivityTester:
             best_latency = float('inf')
             protocols = []
             
-            # 使用session来复用连接
             session = requests.Session()
-            session.verify = False  # 禁用证书验证
+            session.verify = False
             
             for test_url in self.tls_test_sites:
                 try:
                     total_tests += 1
                     start_time = time.time()
                     
-                    response = session.get(
-                        test_url, 
-                        timeout=self.tls_http_timeout,
-                        allow_redirects=True
-                    )
+                    response = session.get(test_url, timeout=self.tls_http_timeout)
                     latency = (time.time() - start_time) * 1000
                     
-                    # 检查响应状态
                     if response.status_code == 200:
                         success_count += 1
                         if latency < best_latency:
                             best_latency = latency
                         
-                        # 检测协议类型
                         if response.url.startswith('https://'):
                             protocols.append('TLS/HTTPS')
                         else:
@@ -225,7 +277,6 @@ class NodeConnectivityTester:
                     response.close()
                     
                 except requests.exceptions.SSLError:
-                    # SSL错误，但至少尝试了TLS连接
                     protocols.append('TLS_Failed')
                 except requests.exceptions.ConnectTimeout:
                     protocols.append('Timeout')
@@ -235,10 +286,8 @@ class NodeConnectivityTester:
                     protocols.append('OtherError')
             
             if success_count > 0:
-                # 计算成功率
                 success_rate = (success_count / total_tests) * 100
                 
-                # 确定主要协议
                 if 'TLS/HTTPS' in protocols:
                     protocol = 'TLS/HTTPS'
                 elif 'HTTP' in protocols:
@@ -299,14 +348,14 @@ class NodeConnectivityTester:
             else:
                 print(f"  TCP: 失败")
         
-        # 测试下载速度
+        # 测试下载速度（通过代理）
         speed_success, speed_mbps, speed_mbs = False, 0, 0
         if self.enable_speedtest:
-            speed_success, speed_mbps, speed_mbs = self.test_download_speed(host)
+            speed_success, speed_mbps, speed_mbs = self.test_download_speed_via_proxy(original_config)
             if speed_success:
-                print(f"  速度: {speed_mbps:.2f} Mbps")
+                print(f"  代理下载速度: {speed_mbps:.2f} Mbps")
             else:
-                print(f"  速度: 失败")
+                print(f"  代理下载速度: 失败")
         
         # 测试TLS/HTTP连接性
         tls_http_success, tls_http_latency, tls_http_protocol = False, 0, ""
@@ -378,7 +427,7 @@ class NodeConnectivityTester:
         print("=" * 50)
         print(f"Ping测试: {'启用' if self.enable_ping else '禁用'}")
         print(f"TCP测试: {'启用' if self.enable_tcp else '禁用'}")
-        print(f"速度测试: {'启用' if self.enable_speedtest else '禁用'}")
+        print(f"速度测试: {'启用' if self.enable_speedtest else '禁用'} (通过代理)")
         print(f"TLS/HTTP测试: {'启用' if self.enable_tls_http_test else '禁用'}")
         print("=" * 50)
         
@@ -395,11 +444,10 @@ class NodeConnectivityTester:
             result = self.test_single_node(node, i)
             results.append(result)
             
-            # 如果有任何测试成功，就保留该节点
             if result['success_count'] > 0:
                 valid_nodes.append(result['original_config'])
             
-            time.sleep(0.5)  # 短暂延迟
+            time.sleep(0.5)
         
         # 保存有效节点
         if valid_nodes:
@@ -432,7 +480,7 @@ def main():
     # 配置测试开关
     enable_ping = True
     enable_tcp = True
-    enable_speedtest = False
+    enable_speedtest = True
     enable_tls_http_test = True
     
     # 创建测试器
