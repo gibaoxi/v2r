@@ -21,7 +21,7 @@ class NodeConnectivityTester:
         self.ping_timeout = 3
         self.tcp_timeout = 5
         self.speedtest_timeout = 15
-        self.tls_http_timeout = 8
+        self.tls_http_timeout = 10
         self.enable_ping = enable_ping
         self.enable_tcp = enable_tcp
         self.enable_speedtest = enable_speedtest
@@ -35,9 +35,9 @@ class NodeConnectivityTester:
         
         # TLS/HTTP测试配置
         self.tls_test_sites = [
-            "https://www.github.com", 
+            "https://ip.sb", 
             "https://www.cloudflare.com",
-            "https://www.baidu.com",
+            "https://www.github.com",
         ]
         
         print("=" * 60)
