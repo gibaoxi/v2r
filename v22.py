@@ -46,6 +46,8 @@ def parse_node(line):
             "sni": q.get("sni", [u.hostname])[0],
             "host": q.get("host", [u.hostname])[0],
             "path": q.get("path", [""])[0],
+            "publicKey": q.get("pbk", [""])[0],
+            "shortId": q.get("sid", [""])[0],
         }
 
     if line.startswith("trojan://"):
@@ -58,33 +60,57 @@ def parse_node(line):
         }
 
     if line.startswith("vmess://"):
-        data = base64.b64decode(line[8:] + "==").decode()
-        j = json.loads(data)
-        return {
-            "type": "vmess",
-            "server": j["add"],
-            "port": int(j["port"]),
-            "uuid": j["id"],
-            "network": j.get("net", "tcp"),
-            "host": j.get("host", ""),
-            "path": j.get("path", ""),
-            "tls": j.get("tls", "")
-        }
+        try:
+            data = base64.b64decode(line[8:] + "==").decode()
+            j = json.loads(data)
+            return {
+                "type": "vmess",
+                "server": j["add"],
+                "port": int(j["port"]),
+                "uuid": j["id"],
+                "network": j.get("net", "tcp"),
+                "host": j.get("host", ""),
+                "path": j.get("path", ""),
+                "tls": j.get("tls", "")
+            }
+        except:
+            return None
 
     if line.startswith("ss://"):
         raw = line[5:]
         if "@" not in raw:
-            raw = base64.b64decode(raw + "==").decode()
-        method_pass, server = raw.split("@")
-        method, password = method_pass.split(":")
-        host, port = server.split(":")
-        return {
-            "type": "ss",
-            "server": host,
-            "port": int(port),
-            "method": method,
-            "password": password
-        }
+            try:
+                raw = base64.b64decode(raw + "==").decode()
+            except:
+                return None
+        
+        try:
+            if "@" not in raw:
+                return None
+                
+            method_pass, server = raw.split("@", 1)
+            if ":" not in method_pass:
+                return None
+                
+            method, password = method_pass.split(":", 1)
+            
+            # 处理服务器部分（可能有多个冒号的情况）
+            server_parts = server.split(":")
+            if len(server_parts) < 2:
+                return None
+                
+            host = server_parts[0]
+            port = int(server_parts[1])
+            
+            return {
+                "type": "ss",
+                "server": host,
+                "port": port,
+                "method": method,
+                "password": password
+            }
+        except (ValueError, IndexError):
+            return None
 
     return None
 
@@ -94,6 +120,7 @@ def gen_config(n):
     outbound = {}
 
     if n["type"] == "vless":
+        # 基础配置
         outbound = {
             "protocol": "vless",
             "settings": {
@@ -105,14 +132,32 @@ def gen_config(n):
             },
             "streamSettings": {
                 "network": n["network"],
-                "security": n["security"],
-                "tlsSettings": {"serverName": n["sni"]} if n["security"] == "tls" else {},
-                "wsSettings": {
-                    "path": n["path"],
-                    "headers": {"Host": n["host"]}
-                } if n["network"] == "ws" else {}
+                "security": n["security"]
             }
         }
+        
+        # TLS设置
+        if n["security"] == "tls":
+            outbound["streamSettings"]["tlsSettings"] = {
+                "serverName": n.get("sni", n["server"])
+            }
+        # REALITY设置
+        elif n["security"] == "reality":
+            outbound["streamSettings"]["realitySettings"] = {
+                "show": False,
+                "fingerprint": "chrome",
+                "serverName": n.get("sni", n["server"]),
+                "publicKey": n.get("publicKey", ""),
+                "shortId": n.get("shortId", ""),
+                "spiderX": n.get("spiderX", "/")
+            }
+        
+        # WebSocket设置
+        if n["network"] == "ws":
+            outbound["streamSettings"]["wsSettings"] = {
+                "path": n.get("path", ""),
+                "headers": {"Host": n.get("host", n["server"])}
+            }
 
     elif n["type"] == "trojan":
         outbound = {
@@ -205,29 +250,42 @@ results = []
 with open("sub.txt", encoding="utf-8") as f:
     for line in f:
         line = line.strip()
-        node = parse_node(line)
-        if not node:
+        if not line:
             continue
+            
+        try:
+            node = parse_node(line)
+            if not node:
+                print(f"跳过无法解析的节点: {line[:50]}...")
+                continue
 
-        ok, tcp_ms = tcp_test(node["server"], node["port"])
-        if not ok:
-            continue
+            ok, tcp_ms = tcp_test(node["server"], node["port"])
+            if not ok:
+                print(f"TCP测试失败: {node['server']}:{node['port']}")
+                continue
 
-        with open(CONFIG, "w") as c:
-            json.dump(gen_config(node), c, indent=2)
+            config = gen_config(node)
+            with open(CONFIG, "w") as c:
+                json.dump(config, c, indent=2)
 
-        p = subprocess.Popen([XRAY_BIN, "run", "-config", CONFIG])
-        time.sleep(3)
+            p = subprocess.Popen([XRAY_BIN, "run", "-config", CONFIG])
+            time.sleep(3)
 
-        if not http_test():
+            if not http_test():
+                p.terminate()
+                print(f"HTTP测试失败: {node['server']}")
+                continue
+
+            speed = speed_test()
             p.terminate()
+
+            if speed > 0.1:
+                results.append((line, tcp_ms, speed))
+                print(f"节点可用: {node['server']}, 延迟: {tcp_ms}ms, 速度: {speed}Mbps")
+                
+        except Exception as e:
+            print(f"处理节点时出错: {line[:30]}... 错误: {str(e)}")
             continue
-
-        speed = speed_test()
-        p.terminate()
-
-        if speed > 0.1:
-            results.append((line, tcp_ms, speed))
 
 # 排序：速度优先，其次延迟
 results.sort(key=lambda x: (-x[2], x[1]))
