@@ -6,6 +6,7 @@ import json
 import requests
 import subprocess
 import base64
+import socket
 from urllib.parse import urlparse
 import warnings
 from urllib3.exceptions import InsecureRequestWarning
@@ -19,9 +20,29 @@ class GitHubV2RayTester:
         self.local_port = 10808
         self.v2ray_process = None
         
-        self.test_urls = ["https://ip.sb"]
-        self.speedtest_url = "https://speed.cloudflare.com/__down?bytes=1000000"
+        self.test_urls = ["http://httpbin.org/ip", "http://ifconfig.me"]  # 使用HTTP测试
+        self.speedtest_url = "http://speedtest.ftp.otenet.gr/files/test1Mb.db"  # 使用HTTP速度测试
         
+    def check_port_available(self, port):
+        """检查端口是否可用"""
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(1)
+            result = sock.connect_ex(('127.0.0.1', port))
+            sock.close()
+            return result == 0
+        except:
+            return False
+    
+    def wait_for_port(self, port, timeout=10):
+        """等待端口就绪"""
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            if self.check_port_available(port):
+                return True
+            time.sleep(0.5)
+        return False
+    
     def setup_v2ray(self):
         """检查V2Ray环境"""
         if not os.path.exists(self.v2ray_path):
@@ -31,15 +52,17 @@ class GitHubV2RayTester:
         # 设置执行权限
         os.chmod(self.v2ray_path, 0o755)
         
-        # 测试V2Ray版本和参数
+        # 测试V2Ray版本
         try:
             result = subprocess.run(
-                [self.v2ray_path, "-h"],
+                [self.v2ray_path, "-version"],
                 capture_output=True,
                 text=True,
                 timeout=5
             )
             print("✅ V2Ray准备就绪")
+            if result.stdout:
+                print(f"  版本信息: {result.stdout.strip()}")
             return True
         except Exception as e:
             print(f"❌ V2Ray测试失败: {e}")
@@ -74,12 +97,22 @@ class GitHubV2RayTester:
             decoded = base64.b64decode(encoded).decode('utf-8')
             vmess = json.loads(decoded)
             
-            return {
+            # 简化配置，确保基本功能
+            v2ray_config = {
+                "log": {
+                    "loglevel": "warning"
+                },
                 "inbounds": [{
                     "port": self.local_port,
                     "listen": "127.0.0.1",
                     "protocol": "socks",
-                    "settings": {"udp": True, "auth": "noauth"}
+                    "settings": {
+                        "auth": "noauth",
+                        "udp": False  # 先禁用UDP简化测试
+                    },
+                    "sniffing": {
+                        "enabled": False
+                    }
                 }],
                 "outbounds": [{
                     "protocol": "vmess",
@@ -89,15 +122,48 @@ class GitHubV2RayTester:
                             "port": int(vmess["port"]),
                             "users": [{
                                 "id": vmess["id"],
-                                "alterId": int(vmess.get("aid", 0))
+                                "alterId": int(vmess.get("aid", 0)),
+                                "security": vmess.get("scy", "auto")
                             }]
                         }]
                     },
                     "streamSettings": {
-                        "network": vmess.get("net", "tcp")
-                    }
-                }]
+                        "network": vmess.get("net", "tcp"),
+                        "security": vmess.get("tls", "none")
+                    },
+                    "tag": "proxy"
+                }, {
+                    "protocol": "freedom",
+                    "tag": "direct",
+                    "settings": {}
+                }],
+                "routing": {
+                    "domainStrategy": "IPIfNonMatch",
+                    "rules": [{
+                        "type": "field",
+                        "ip": ["geoip:private"],
+                        "outboundTag": "direct"
+                    }]
+                }
             }
+            
+            # 添加WebSocket设置
+            if vmess.get("net") == "ws":
+                v2ray_config["outbounds"][0]["streamSettings"]["wsSettings"] = {
+                    "path": vmess.get("path", ""),
+                    "headers": {
+                        "Host": vmess.get("host", "")
+                    }
+                }
+            
+            # 添加TLS设置
+            if vmess.get("tls"):
+                v2ray_config["outbounds"][0]["streamSettings"]["tlsSettings"] = {
+                    "serverName": vmess.get("host", vmess.get("add"))
+                }
+            
+            return v2ray_config
+            
         except Exception as e:
             print(f"❌ 解析VMess失败: {e}")
             return None
@@ -108,12 +174,18 @@ class GitHubV2RayTester:
             parsed = urlparse(config)
             params = dict(p.split('=') for p in parsed.query.split('&') if '=' in p)
             
-            return {
+            v2ray_config = {
+                "log": {
+                    "loglevel": "warning"
+                },
                 "inbounds": [{
                     "port": self.local_port,
                     "listen": "127.0.0.1",
                     "protocol": "socks",
-                    "settings": {"udp": True, "auth": "noauth"}
+                    "settings": {
+                        "auth": "noauth",
+                        "udp": False
+                    }
                 }],
                 "outbounds": [{
                     "protocol": "vless",
@@ -121,14 +193,44 @@ class GitHubV2RayTester:
                         "vnext": [{
                             "address": parsed.hostname,
                             "port": parsed.port or 443,
-                            "users": [{"id": parsed.username, "encryption": "none"}]
+                            "users": [{
+                                "id": parsed.username,
+                                "encryption": "none",
+                                "flow": params.get('flow', '')
+                            }]
                         }]
                     },
                     "streamSettings": {
-                        "network": params.get('type', 'tcp')
-                    }
-                }]
+                        "network": params.get('type', 'tcp'),
+                        "security": params.get('security', 'none')
+                    },
+                    "tag": "proxy"
+                }],
+                "routing": {
+                    "domainStrategy": "IPIfNonMatch",
+                    "rules": [{
+                        "type": "field",
+                        "ip": ["geoip:private"],
+                        "outboundTag": "direct"
+                    }]
+                }
             }
+            
+            if params.get('type') == 'ws':
+                v2ray_config["outbounds"][0]["streamSettings"]["wsSettings"] = {
+                    "path": params.get('path', ''),
+                    "headers": {
+                        "Host": params.get('host', parsed.hostname)
+                    }
+                }
+            
+            if params.get('security') == 'tls':
+                v2ray_config["outbounds"][0]["streamSettings"]["tlsSettings"] = {
+                    "serverName": params.get('sni', parsed.hostname)
+                }
+            
+            return v2ray_config
+            
         except Exception as e:
             print(f"❌ 解析VLESS失败: {e}")
             return None
@@ -139,11 +241,17 @@ class GitHubV2RayTester:
             parsed = urlparse(config)
             
             return {
+                "log": {
+                    "loglevel": "warning"
+                },
                 "inbounds": [{
                     "port": self.local_port,
                     "listen": "127.0.0.1",
                     "protocol": "socks",
-                    "settings": {"udp": True, "auth": "noauth"}
+                    "settings": {
+                        "auth": "noauth",
+                        "udp": False
+                    }
                 }],
                 "outbounds": [{
                     "protocol": "trojan",
@@ -155,9 +263,21 @@ class GitHubV2RayTester:
                         }]
                     },
                     "streamSettings": {
-                        "security": "tls"
-                    }
-                }]
+                        "security": "tls",
+                        "tlsSettings": {
+                            "serverName": parsed.hostname
+                        }
+                    },
+                    "tag": "proxy"
+                }],
+                "routing": {
+                    "domainStrategy": "IPIfNonMatch",
+                    "rules": [{
+                        "type": "field",
+                        "ip": ["geoip:private"],
+                        "outboundTag": "direct"
+                    }]
+                }
             }
         except Exception as e:
             print(f"❌ 解析Trojan失败: {e}")
@@ -166,27 +286,60 @@ class GitHubV2RayTester:
     def parse_ss(self, config):
         """解析Shadowsocks配置"""
         try:
-            if '@' not in config:
-                return None
+            config = config[5:]  # 移除ss://
+            
+            if '@' in config:
+                parts = config.split('@')
+                method_password = parts[0]
+                server_port = parts[1].split('#')[0]
                 
-            parts = config[5:].split('@')
-            method_password = parts[0]
-            server_port = parts[1].split('#')[0]
-            
-            method, password_encoded = method_password.split(':', 1)
-            server, port_str = server_port.split(':', 1)
-            
-            padding = 4 - len(password_encoded) % 4
-            if padding != 4:
-                password_encoded += '=' * padding
-            password = base64.b64decode(password_encoded).decode('utf-8')
+                method, password_encoded = method_password.split(':', 1)
+                server, port_str = server_port.split(':', 1)
+                
+                # 尝试解码密码
+                try:
+                    padding = 4 - len(password_encoded) % 4
+                    if padding != 4:
+                        password_encoded += '=' * padding
+                    password = base64.b64decode(password_encoded).decode('utf-8')
+                except:
+                    password = password_encoded
+            else:
+                # Base64编码格式
+                padding = 4 - len(config) % 4
+                if padding != 4:
+                    config += '=' * padding
+                decoded = base64.b64decode(config).decode('utf-8')
+                
+                if '@' in decoded:
+                    parts = decoded.split('@')
+                    method_password = parts[0]
+                    server_port = parts[1]
+                    
+                    method, password = method_password.split(':', 1)
+                    server, port_str = server_port.split(':', 1)
+                else:
+                    # cipher:password@server:port 格式
+                    server_info = decoded.split('@')
+                    if len(server_info) == 2:
+                        method_password, server_port = server_info
+                        method, password = method_password.split(':', 1)
+                        server, port_str = server_port.split(':', 1)
+                    else:
+                        return None
             
             return {
+                "log": {
+                    "loglevel": "warning"
+                },
                 "inbounds": [{
                     "port": self.local_port,
                     "listen": "127.0.0.1",
                     "protocol": "socks",
-                    "settings": {"udp": True, "auth": "noauth"}
+                    "settings": {
+                        "auth": "noauth",
+                        "udp": False
+                    }
                 }],
                 "outbounds": [{
                     "protocol": "shadowsocks",
@@ -197,9 +350,19 @@ class GitHubV2RayTester:
                             "method": method,
                             "password": password
                         }]
-                    }
-                }]
+                    },
+                    "tag": "proxy"
+                }],
+                "routing": {
+                    "domainStrategy": "IPIfNonMatch",
+                    "rules": [{
+                        "type": "field",
+                        "ip": ["geoip:private"],
+                        "outboundTag": "direct"
+                    }]
+                }
             }
+            
         except Exception as e:
             print(f"❌ 解析SS失败: {e}")
             return None
@@ -211,46 +374,40 @@ class GitHubV2RayTester:
             with open(self.config_path, 'w') as f:
                 json.dump(config, f, indent=2)
             
-            # 尝试不同的参数格式
-            command_formats = [
-                [self.v2ray_path, "run", "-config", self.config_path],  # 新版本格式
-                [self.v2ray_path, "-config", self.config_path],         # 旧版本格式
-                [self.v2ray_path, "run", "-c", self.config_path],      # 短参数格式
-                [self.v2ray_path, "-c", self.config_path]             # 短参数旧格式
-            ]
+            # 确保端口空闲
+            if self.check_port_available(self.local_port):
+                print(f"⚠️ 端口 {self.local_port} 已被占用，等待释放...")
+                time.sleep(2)
             
-            for cmd in command_formats:
+            # 启动V2Ray
+            cmd = [self.v2ray_path, "run", "-config", self.config_path]
+            print(f"🚀 启动V2Ray: {' '.join(cmd)}")
+            
+            self.v2ray_process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            
+            # 等待端口就绪
+            if self.wait_for_port(self.local_port, timeout=10):
+                print("✅ V2Ray启动成功，端口已就绪")
+                return True
+            else:
+                # 检查进程输出
                 try:
-                    print(f"🚀 尝试启动命令: {' '.join(cmd)}")
-                    self.v2ray_process = subprocess.Popen(
-                        cmd,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE
-                    )
-                    
-                    # 等待启动
-                    time.sleep(3)
-                    
-                    # 检查进程状态
-                    if self.v2ray_process.poll() is not None:
-                        stdout, stderr = self.v2ray_process.communicate()
-                        error_msg = stderr.decode() if stderr else stdout.decode()
-                        print(f"❌ 启动失败: {error_msg}")
-                        continue
-                    
-                    print("✅ V2Ray启动成功")
-                    return True
-                    
-                except Exception as e:
-                    print(f"❌ 命令失败: {e}")
-                    if self.v2ray_process:
-                        self.v2ray_process.terminate()
-                        self.v2ray_process = None
-                    continue
-            
-            print("❌ 所有启动方式都失败了")
-            return False
-            
+                    stdout, stderr = self.v2ray_process.communicate(timeout=1)
+                    if stderr:
+                        print(f"❌ V2Ray错误: {stderr.strip()}")
+                    if stdout:
+                        print(f"ℹ️ V2Ray输出: {stdout.strip()}")
+                except:
+                    pass
+                
+                print("❌ V2Ray启动失败：端口未就绪")
+                return False
+                
         except Exception as e:
             print(f"❌ 启动V2Ray失败: {e}")
             return False
@@ -261,6 +418,7 @@ class GitHubV2RayTester:
             try:
                 self.v2ray_process.terminate()
                 self.v2ray_process.wait(timeout=3)
+                print("✅ V2Ray已停止")
             except:
                 try:
                     self.v2ray_process.kill()
@@ -268,60 +426,92 @@ class GitHubV2RayTester:
                     pass
             self.v2ray_process = None
         
+        # 清理配置文件
         if os.path.exists(self.config_path):
             try:
                 os.remove(self.config_path)
             except:
                 pass
+        
+        time.sleep(1)  # 等待端口释放
     
     def test_connectivity(self, proxy_url):
         """测试连接性"""
-        proxies = {'http': proxy_url, 'https': proxy_url}
+        proxies = {
+            'http': proxy_url,
+            'https': proxy_url
+        }
+        
+        session = requests.Session()
+        session.verify = False
+        session.trust_env = False  # 避免系统代理干扰
         
         for test_url in self.test_urls:
             try:
+                print(f"  🔗 测试连接: {test_url}")
                 start_time = time.time()
-                response = requests.get(test_url, proxies=proxies, timeout=10, verify=False)
+                response = session.get(test_url, proxies=proxies, timeout=15)
                 latency = (time.time() - start_time) * 1000
                 
                 if response.status_code == 200:
                     print(f"  ✅ 连接成功 - {latency:.1f}ms")
+                    try:
+                        print(f"    响应: {response.text.strip()}")
+                    except:
+                        pass
                     return True, latency
                 else:
                     print(f"  ❌ HTTP {response.status_code}")
                     
+            except requests.exceptions.SSLError as e:
+                print(f"  ❌ SSL错误: {e}")
+            except requests.exceptions.ProxyError as e:
+                print(f"  ❌ 代理错误: {e}")
+            except requests.exceptions.ConnectTimeout as e:
+                print(f"  ❌ 连接超时: {e}")
+            except requests.exceptions.ConnectionError as e:
+                print(f"  ❌ 连接错误: {e}")
             except Exception as e:
-                print(f"  ❌ 连接失败: {str(e)}")
+                print(f"  ❌ 请求错误: {e}")
         
         return False, 0
     
     def test_speed(self, proxy_url):
         """测试下载速度"""
         try:
+            session = requests.Session()
+            session.verify = False
+            session.trust_env = False
+            
+            print(f"  🚀 开始速度测试...")
             start_time = time.time()
-            response = requests.get(
+            response = session.get(
                 self.speedtest_url,
                 proxies={'http': proxy_url, 'https': proxy_url},
-                timeout=15,
-                stream=True,
-                verify=False
+                timeout=30,
+                stream=True
             )
             
             total_size = 0
             for chunk in response.iter_content(chunk_size=8192):
                 total_size += len(chunk)
-                if time.time() - start_time > 10:
+                if time.time() - start_time > 15:  # 最多15秒
+                    break
+                if total_size > 5 * 1024 * 1024:  # 最多5MB
                     break
             
             download_time = time.time() - start_time
             
             if download_time > 0 and total_size > 0:
                 speed_mbps = (total_size * 8) / (download_time * 1024 * 1024)
+                print(f"  📊 下载 {total_size/1024:.1f}KB, 耗时 {download_time:.1f}s, 速度 {speed_mbps:.2f} Mbps")
                 return True, speed_mbps, total_size
             else:
+                print("  ❌ 速度测试失败")
                 return False, 0, 0
                 
         except Exception as e:
+            print(f"  ❌ 速度测试错误: {e}")
             return False, 0, 0
     
     def test_single_node(self, node_config, index):
@@ -369,11 +559,10 @@ class GitHubV2RayTester:
         
         finally:
             self.stop_v2ray()
-            time.sleep(1)
         
         return result
     
-    def read_nodes(self, filename="sub.txt"):
+    def read_nodes(self, filename="ping.txt"):
         """读取节点列表"""
         if not os.path.exists(filename):
             print(f"❌ 找不到节点文件: {filename}")
@@ -408,8 +597,9 @@ class GitHubV2RayTester:
                 if result['success']:
                     valid_nodes.append(node_config)
             
-            if i % 5 == 0:
+            if i % 3 == 0:  # 每3个节点显示一次进度
                 print(f"⏳ 已完成 {i}/{len(nodes)} 个节点测试")
+                time.sleep(1)  # 短暂休息
         
         # 保存有效节点
         with open('ping.txt', 'w', encoding='utf-8') as f:
