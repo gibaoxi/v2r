@@ -9,6 +9,7 @@ import threading
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urlparse
+import base64
 
 class NodeConnectivityTester:
     def __init__(self, enable_ping=True, enable_tcp=True, enable_speedtest=True, enable_url_test=True):
@@ -30,12 +31,14 @@ class NodeConnectivityTester:
             "https://dl.google.com/dl/android/studio/install/3.6.1.0/android-studio-ide-192.6241897-windows.exe"  # 大文件
         ]
         
-        # URL延迟测试配置
+        # URL延迟测试配置 - 使用HTTP而不是HTTPS，避免证书问题
         self.url_test_sites = [
-            "https://www.google.com",
-            "https://www.github.com", 
-            "https://www.cloudflare.com",
-            "https://www.baidu.com"
+            "http://www.google.com",
+            "http://www.github.com", 
+            "http://www.cloudflare.com",
+            "http://www.baidu.com",
+            "http://1.1.1.1",  # Cloudflare DNS
+            "http://8.8.8.8"   # Google DNS
         ]
         
     def read_nodes(self):
@@ -63,7 +66,6 @@ class NodeConnectivityTester:
         try:
             if node_config.startswith('vmess://'):
                 # 解析VMess配置
-                import base64
                 encoded = node_config[8:]
                 padding = 4 - len(encoded) % 4
                 if padding != 4:
@@ -203,8 +205,8 @@ class NodeConnectivityTester:
             print(f"   📊📊 速度测试异常: {e}")
             return False, 0, 0
 
-    def test_url_latency(self, host):
-        """测试URL访问延迟"""
+    def test_url_latency_direct(self, host):
+        """直接测试URL延迟（不使用代理）"""
         if not self.enable_url_test:
             return False, 0  # 如果禁用URL测试，直接返回
             
@@ -216,7 +218,12 @@ class NodeConnectivityTester:
             for test_url in self.url_test_sites:
                 try:
                     start_time = time.time()
-                    response = requests.get(test_url, timeout=self.url_test_timeout, stream=False)
+                    response = requests.get(
+                        test_url, 
+                        timeout=self.url_test_timeout,
+                        verify=False,  # 忽略SSL证书验证
+                        allow_redirects=True
+                    )
                     latency = (time.time() - start_time) * 1000  # 毫秒
                     
                     if response.status_code == 200:
@@ -302,10 +309,10 @@ class NodeConnectivityTester:
         else:
             print(f"   📊📊📊📊📊📊📊📊 速度测试: 🔄🔄 已禁用")
         
-        # 4. 测试URL延迟（根据开关决定）
+        # 4. 测试URL延迟（根据开关决定）- 直接测试，不使用代理
         url_success, url_latency = False, 0
         if self.enable_url_test:
-            url_success, url_latency = self.test_url_latency(host)
+            url_success, url_latency = self.test_url_latency_direct(host)
         else:
             print(f"   🌐🌐🌐🌐🌐🌐🌐🌐 URL延迟测试: 🔄🔄 已禁用")
         
@@ -554,37 +561,190 @@ class NodeConnectivityTester:
         with open('connectivity_results.json', 'w', encoding='utf-8') as f:
             json.dump(json_data, f, ensure_ascii=False, indent=2)
         
-        print(f"\n💾💾💾💾💾💾💾 保存结果:")
+        print(f"\n💾💾💾💾💾💾💾💾 保存结果:")
         if filtered_results:
-            print(f"   📄📄 filtered_nodes.txt - {total_filtered} 个有效节点")
+            print(f"   📄📄📄📄 ping.txt - {total_filtered} 个有效节点")
         else:
-            print(f"   📄📄 filtered_nodes.txt - 无有效节点")
-        print(f"   📊📊 connectivity_results.json - 详细测试结果")
-        print(f"   🔗🔗 过滤掉了 {all_failed} 个完全失败的节点")
+            print(f"   📄📄📄📄 ping.txt - 无有效节点")
+        print(f"   📊📊📊📊 connectivity_results.json - 详细测试结果")
+        print(f"   🔗🔗🔗🔗 过滤掉了 {all_failed} 个完全失败的节点")
+
 
 def main():
     """主函数"""
     # 检查文件是否存在
-    if not os.path.exists("sub.txt"):
-        print("❌❌❌❌ 请确保 sub.txt 文件存在于当前目录")
-        print("📁📁📁📁 当前目录文件:")
+    if not os.path.exists("ping.txt"):
+        print("❌❌❌❌❌❌❌❌ 请确保 ping.txt 文件存在于当前目录")
+        print("📁📁📁📁📁📁📁📁 当前目录文件:")
         for file in os.listdir('.'):
             print(f"   - {file}")
         return
     
-    # 在这里设置测试开关
-    enable_ping = False      # Ping测试开关
+    # 默认配置
+    enable_ping = False       # Ping测试开关
     enable_tcp = True        # TCP测试开关  
-    enable_speedtest = False
-    enable_url_test=True   # 速度测试开关
+    enable_speedtest = False  # 速度测试开关
+    enable_url_test = True   # URL延迟测试开关
     
+    print("=" * 70)
+    print("⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️ 节点连通性测试配置")
+    print("=" * 70)
+    print("💡 提示: 在GitHub Actions环境中，建议禁用速度测试以加快执行速度")
+    print()
+    
+    # 交互式配置
+    try:
+        print("请选择要启用的测试类型 (输入 y/n 或 1/0，直接回车使用默认值):")
+        
+        ping_input = input("启用ICMP Ping测试? (y/n, 默认:y): ").strip().lower()
+        if ping_input in ['n', '0', 'no']:
+            enable_ping = False
+        
+        tcp_input = input("启用TCP端口测试? (y/n, 默认:y): ").strip().lower()
+        if tcp_input in ['n', '0', 'no']:
+            enable_tcp = False
+        
+        speed_input = input("启用下载速度测试? (y/n, 默认:y): ").strip().lower()
+        if speed_input in ['n', '0', 'no']:
+            enable_speedtest = False
+        
+        url_input = input("启用URL延迟测试? (y/n, 默认:y): ").strip().lower()
+        if url_input in ['n', '0', 'no']:
+            enable_url_test = False
+        
+        # 确认配置
+        print("\n📋📋📋📋📋📋📋📋 最终配置:")
+        print(f"   📡 ICMP Ping: {'✅ 启用' if enable_ping else '❌ 禁用'}")
+        print(f"   🔌 TCP端口: {'✅ 启用' if enable_tcp else '❌ 禁用'}")
+        print(f"   📊 速度测试: {'✅ 启用' if enable_speedtest else '❌ 禁用'}")
+        print(f"   🌐 URL延迟: {'✅ 启用' if enable_url_test else '❌ 禁用'}")
+        
+        confirm = input("\n确认开始测试? (y/n, 默认:y): ").strip().lower()
+        if confirm in ['n', '0', 'no']:
+            print("❌ 测试已取消")
+            return
+            
+    except (KeyboardInterrupt, EOFError):
+        print("\n❌ 测试已取消")
+        return
+    
+    # 创建测试器实例
     tester = NodeConnectivityTester(
         enable_ping=enable_ping, 
         enable_tcp=enable_tcp, 
         enable_speedtest=enable_speedtest,
-        enable_url_test=enable_url_test)
-    results = tester.run_comprehensive_test()
+        enable_url_test=enable_url_test
+    )
+    
+    # 运行测试
+    try:
+        start_time = time.time()
+        results = tester.run_comprehensive_test()
+        end_time = time.time()
+        
+        if results:
+            print("\n" + "=" * 70)
+            print("🎉🎉🎉🎉🎉🎉🎉🎉 测试完成!")
+            print("=" * 70)
+            print(f"⏱️⏱️⏱️⏱️⏱️⏱️⏱️⏱️ 总耗时: {end_time - start_time:.2f} 秒")
+            print()
+            print("📁📁📁📁📁📁📁📁 生成的文件:")
+            print("   - ping.txt: 过滤后的有效节点配置")
+            print("   - connectivity_results.json: 详细测试结果")
+            print()
+            print("💡💡💡💡💡💡💡💡 提示:")
+            print("   - 您可以使用 ping.txt 中的节点配置进行连接")
+            print("   - 查看 connectivity_results.json 获取详细的测试数据")
+            print("   - 在GitHub Actions中，结果文件会自动保存为工件")
+        else:
+            print("\n❌❌❌❌❌❌❌❌ 测试失败或没有找到有效节点")
+            
+    except KeyboardInterrupt:
+        print("\n\n❌❌❌❌❌❌❌❌ 测试被用户中断")
+    except Exception as e:
+        print(f"\n❌❌❌❌❌❌❌❌ 测试过程中出现错误: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+def test_single_node():
+    """测试单个节点（调试用）"""
+    # 创建测试配置
+    test_configs = [
+        "vmess://ew0KICAidiI6ICIyIiwNCiAgInBzIjogInRlc3QiLA0KICAiYWRkIjogImV4YW1wbGUuY29tIiwNCiAgInBvcnQiOiAiODA4MCIsDQogICJpZCI6ICJhYWFhLWFhYWEtYWFhYS1hYWFhIiwNCiAgImFpZCI6ICIwIiwNCiAgIm5ldCI6ICJ0Y3AiLA0KICAidHlwZSI6ICJub25lIiwNCiAgImhvc3QiOiAiIiwNCiAgInBhdGgiOiAiIiwNCiAgInRscyI6ICIiDQp9",
+        "vless://uuid@example.com:443?security=tls&type=ws#test",
+        "8.8.8.8:53"
+    ]
+    
+    # 创建临时测试文件
+    with open('test_nodes.txt', 'w', encoding='utf-8') as f:
+        for config in test_configs:
+            f.write(config + '\n')
+    
+    # 测试单个配置
+    tester = NodeConnectivityTester(
+        enable_ping=True,
+        enable_tcp=True, 
+        enable_speedtest=False,  # 单节点测试时禁用速度测试
+        enable_url_test=True
+    )
+    
+    # 读取测试节点
+    nodes = []
+    with open('test_nodes.txt', 'r', encoding='utf-8') as f:
+        for line_num, line in enumerate(f, 1):
+            clean_line = line.strip()
+            if clean_line and not clean_line.startswith('#'):
+                nodes.append({
+                    'line_num': line_num,
+                    'config': clean_line,
+                    'original_config': clean_line
+                })
+    
+    if nodes:
+        print("🧪🧪🧪🧪🧪🧪🧪🧪 开始单节点测试...")
+        result = tester.test_single_node(nodes[0], 1)
+        print(f"\n📊📊📊📊📊📊📊📊 测试结果:")
+        print(f"   状态: {result['status']}")
+        print(f"   主机: {result.get('host', 'N/A')}")
+        print(f"   端口: {result.get('port', 'N/A')}")
+        print(f"   Ping延迟: {result.get('ping_latency', 'N/A')}")
+        print(f"   TCP延迟: {result.get('tcp_latency', 'N/A')}")
+        print(f"   URL延迟: {result.get('url_latency', 'N/A')}")
+    else:
+        print("❌❌❌❌❌❌❌❌ 没有找到测试节点")
+
+
+def quick_test():
+    """快速测试（用于GitHub Actions）"""
+    print("🚀🚀🚀🚀🚀🚀🚀🚀 快速测试模式（GitHub Actions）")
+    
+    # 在GitHub Actions中，禁用速度测试以加快执行
+    tester = NodeConnectivityTester(
+        enable_ping=True,
+        enable_tcp=True,
+        enable_speedtest=False,  # 禁用速度测试
+        enable_url_test=True
+    )
+    
+    try:
+        results = tester.run_comprehensive_test()
+        if results:
+            print("✅✅✅✅✅✅✅✅ 快速测试完成")
+        else:
+            print("❌❌❌❌❌❌❌❌ 快速测试失败")
+    except Exception as e:
+        print(f"❌❌❌❌❌❌❌❌ 快速测试错误: {e}")
+
 
 if __name__ == "__main__":
-    main()
+    # 检查是否在GitHub Actions环境中
+    is_github_actions = os.getenv('GITHUB_ACTIONS') == 'true'
     
+    if is_github_actions:
+        print("🌐🌐🌐🌐🌐🌐🌐🌐 检测到GitHub Actions环境")
+        # 在GitHub Actions中自动使用快速测试
+        quick_test()
+    else:
+        # 本地环境使用交互式测试
+        main()
