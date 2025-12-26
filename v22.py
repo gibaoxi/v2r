@@ -14,8 +14,7 @@ warnings.filterwarnings('ignore', category=InsecureRequestWarning)
 
 class GitHubV2RayTester:
     def __init__(self):
-        # 直接使用正确的路径
-        self.v2ray_path = "./v2ray/v2ray"  # v2ray文件夹下的v2ray文件
+        self.v2ray_path = "./v2ray/v2ray"
         self.config_path = "./config.json"
         self.local_port = 10808
         self.v2ray_process = None
@@ -31,8 +30,20 @@ class GitHubV2RayTester:
         
         # 设置执行权限
         os.chmod(self.v2ray_path, 0o755)
-        print("✅ V2Ray准备就绪")
-        return True
+        
+        # 测试V2Ray版本和参数
+        try:
+            result = subprocess.run(
+                [self.v2ray_path, "-h"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            print("✅ V2Ray准备就绪")
+            return True
+        except Exception as e:
+            print(f"❌ V2Ray测试失败: {e}")
+            return False
     
     def parse_node_config(self, config):
         """解析节点配置"""
@@ -200,24 +211,45 @@ class GitHubV2RayTester:
             with open(self.config_path, 'w') as f:
                 json.dump(config, f, indent=2)
             
-            # 启动V2Ray
-            self.v2ray_process = subprocess.Popen(
-                [self.v2ray_path, "-config", self.config_path],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
-            )
+            # 尝试不同的参数格式
+            command_formats = [
+                [self.v2ray_path, "run", "-config", self.config_path],  # 新版本格式
+                [self.v2ray_path, "-config", self.config_path],         # 旧版本格式
+                [self.v2ray_path, "run", "-c", self.config_path],      # 短参数格式
+                [self.v2ray_path, "-c", self.config_path]             # 短参数旧格式
+            ]
             
-            # 等待启动
-            time.sleep(2)
+            for cmd in command_formats:
+                try:
+                    print(f"🚀 尝试启动命令: {' '.join(cmd)}")
+                    self.v2ray_process = subprocess.Popen(
+                        cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE
+                    )
+                    
+                    # 等待启动
+                    time.sleep(3)
+                    
+                    # 检查进程状态
+                    if self.v2ray_process.poll() is not None:
+                        stdout, stderr = self.v2ray_process.communicate()
+                        error_msg = stderr.decode() if stderr else stdout.decode()
+                        print(f"❌ 启动失败: {error_msg}")
+                        continue
+                    
+                    print("✅ V2Ray启动成功")
+                    return True
+                    
+                except Exception as e:
+                    print(f"❌ 命令失败: {e}")
+                    if self.v2ray_process:
+                        self.v2ray_process.terminate()
+                        self.v2ray_process = None
+                    continue
             
-            # 检查进程状态
-            if self.v2ray_process.poll() is not None:
-                stdout, stderr = self.v2ray_process.communicate()
-                print(f"❌ V2Ray启动失败: {stderr.decode()}")
-                return False
-            
-            print("✅ V2Ray启动成功")
-            return True
+            print("❌ 所有启动方式都失败了")
+            return False
             
         except Exception as e:
             print(f"❌ 启动V2Ray失败: {e}")
@@ -226,12 +258,21 @@ class GitHubV2RayTester:
     def stop_v2ray(self):
         """停止V2Ray进程"""
         if self.v2ray_process:
-            self.v2ray_process.terminate()
-            self.v2ray_process.wait(timeout=2)
+            try:
+                self.v2ray_process.terminate()
+                self.v2ray_process.wait(timeout=3)
+            except:
+                try:
+                    self.v2ray_process.kill()
+                except:
+                    pass
             self.v2ray_process = None
         
         if os.path.exists(self.config_path):
-            os.remove(self.config_path)
+            try:
+                os.remove(self.config_path)
+            except:
+                pass
     
     def test_connectivity(self, proxy_url):
         """测试连接性"""
