@@ -466,7 +466,7 @@ def main():
         enable_ping=False,
         enable_tcp=True, 
         enable_speedtest=False,
-        enable_tls_http_test=False
+        enable_tls_http_test=True
     )
     
     try:
