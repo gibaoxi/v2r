@@ -420,7 +420,7 @@ class NodeConnectivityTester:
             speed_ok = result.get('speed_success', False)
             tls_ok = result.get('tls_success', False)
             
-            if tcp_ok and speed_ok:
+            if tcp_ok and tls_ok:
                 valid_nodes.append(result['original_config'])
                 print(f"  ✅ 节点满足所有条件，已保存")
             else:
@@ -465,7 +465,7 @@ def main():
     tester = NodeConnectivityTester(
         enable_ping=False,
         enable_tcp=True, 
-        enable_speedtest=True,
+        enable_speedtest=False,
         enable_tls_http_test=False
     )
     
