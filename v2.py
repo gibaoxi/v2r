@@ -23,13 +23,11 @@ class GitHubV2RayTester:
         
         # 测试网站
         self.test_urls = [
-            "https://www.google.com",
-            "https://www.github.com",
-            "https://www.cloudflare.com"
+            "https://ip.sb"
         ]
         
         # 速度测试文件
-        self.speedtest_url = "https://speed.cloudflare.com/__down?bytes=500000"  # 500KB
+        self.speedtest_url = "https://speed.cloudflare.com/__down?bytes=1000000"  # 500KB
         
     def setup_v2ray(self):
         """设置V2Ray环境"""
@@ -424,7 +422,7 @@ class GitHubV2RayTester:
                 total_size += len(chunk)
                 if time.time() - start_time > 10:  # 最多下载10秒
                     break
-                if total_size > 500000:  # 下载500KB
+                if total_size > 1000000:  # 下载500KB
                     break
             
             download_time = time.time() - start_time
