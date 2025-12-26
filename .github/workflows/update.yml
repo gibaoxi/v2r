@@ -59,19 +59,13 @@ jobs:
           unzip xray.zip -d xray
           chmod +x xray/xray
 # --------- 第二阶段：准备 Sing-box ---------
-      - name: Get latest sing-box version
-        id: get_version
-        run: |
-          LATEST_VERSION=$(curl -s https://api.github.com/repos/SagerNet/sing-box/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-          echo "最新版本: $LATEST_VERSION"
-          echo "version=$LATEST_VERSION" >> $GITHUB_OUTPUT
 
       - name: Restore sing-box cache
         id: cache-singbox
         uses: actions/cache@v4
         with:
           path: sing-box
-          key: sing-box-${{ steps.get_version.outputs.version }}-linux-amd64
+          key: sing-box-1.12.14-linux-amd64
           restore-keys: |
             sing-box-linux-amd64-
 
@@ -82,7 +76,7 @@ jobs:
           mkdir -p sing-box
           
           # 下载对应版本
-          wget -q "https://github.com/SagerNet/sing-box/releases/download/${{ steps.get_version.outputs.version }}/sing-box-${{ steps.get_version.outputs.version }}-linux-amd64.tar.gz" -O sing-box.tar.gz
+          wget -q https://github.com/SagerNet/sing-box/releases/download/v1.12.14/sing-box-1.12.14-linux-amd64.tar.gz -O sing-box.tar.gz
           
           # 解压
           tar -xzf sing-box.tar.gz -C sing-box --strip-components=1
