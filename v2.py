@@ -14,12 +14,8 @@ import tempfile
 import shutil
 
 # ========== 配置 ==========
-TCP_TEST = True
-HTTP_TEST = True
-DOWNLOAD_TEST = True
-
-# 批量测试控制
-BATCH_SIZE = 2  # 同时测试的最大节点数（TCP/HTTP测试）
+# 移除了测试开关，因为代码逻辑固定执行三个测试
+BATCH_SIZE = 5  # 同时测试的最大节点数（TCP/HTTP测试）
 SERIAL_DOWNLOAD = True  # 串行下载测试（避免带宽竞争）
 
 XRAY_BIN = "./xray/xray"
@@ -78,87 +74,52 @@ def parse_node(line):
             return None
 
     if line.startswith("ss://"):
-        print(f"调试: 开始解析SS链接: {line}")
-        
         # 移除#号及后面的注释部分
         if '#' in line:
             line = line.split('#')[0]
-            print(f"调试: 移除注释后: {line}")
             
-        # 关键改进：先分离Base64部分和服务器部分
-        clean_line = line[5:]  # 去掉"ss://"
-        print(f"调试: 去掉'ss://'后: {clean_line}")
-        
-        if "@" not in clean_line:
-            print("调试: 没有@符号，尝试Base64解码整个字符串")
+        raw = line[5:]
+        if "@" not in raw:
             try:
                 # 尝试Base64解码
-                clean_line = base64.b64decode(clean_line + "==").decode('utf-8')
-                print(f"调试: Base64解码后: {clean_line}")
-            except Exception as e:
-                print(f"调试: UTF-8解码失败: {e}")
+                raw = base64.b64decode(raw + "==").decode('utf-8')
+            except:
                 try:
                     # 如果UTF-8解码失败，尝试latin-1
-                    clean_line = base64.b64decode(clean_line + "==").decode('latin-1')
-                    print(f"调试: Latin-1解码后: {clean_line}")
-                except Exception as e2:
-                    print(f"调试: 所有解码尝试都失败: {e2}")
+                    raw = base64.b64decode(raw + "==").decode('latin-1')
+                except:
                     return None
         
         try:
-            if "@" not in clean_line:
-                print(f"调试: 解码后仍然没有@符号: {clean_line}")
+            if "@" not in raw:
                 return None
                 
-            # 关键改进：先分离Base64部分和服务器部分
-            base64_part = clean_line.split('@')[0]
-            server_part = clean_line.split('@')[1]
-            print(f"调试: Base64部分: {base64_part}")
-            print(f"调试: 服务器部分: {server_part}")
-            
-            # 解码Base64部分
-            padding_needed = len(base64_part) % 4
-            if padding_needed:
-                base64_part += '=' * (4 - padding_needed)
-                print(f"调试: 添加padding后: {base64_part}")
-                
-            decoded = base64.b64decode(base64_part).decode('utf-8')
-            print(f"调试: Base64解码结果: {decoded}")
-            
-            if ":" not in decoded:
-                print(f"调试: 解码结果中没有冒号: {decoded}")
+            method_pass, server = raw.split("@", 1)
+            if ":" not in method_pass:
                 return None
                 
-            method, password = decoded.split(":", 1)
-            print(f"调试: 方法: {method}, 密码: {password}")
+            method, password = method_pass.split(":", 1)
             
             # 处理服务器部分（可能有多个冒号的情况）
             # 移除可能存在的路径部分
-            if "/" in server_part:
-                server_part = server_part.split("/")[0]
-                print(f"调试: 移除路径后服务器部分: {server_part}")
+            if "/" in server:
+                server = server.split("/")[0]
                 
-            server_parts = server_part.split(":")
+            server_parts = server.split(":")
             if len(server_parts) < 2:
-                print(f"调试: 服务器部分格式错误: {server_part}")
                 return None
                 
             host = server_parts[0]
             port = int(server_parts[1])
-            print(f"调试: 主机: {host}, 端口: {port}")
             
-            result = {
+            return {
                 "type": "ss",
                 "server": host,
                 "port": port,
                 "method": method,
                 "password": password
             }
-            print(f"调试: SS解析成功: {result}")
-            return result
-            
-        except (ValueError, IndexError, UnicodeDecodeError) as e:
-            print(f"调试: SS解析过程出错: {e}")
+        except (ValueError, IndexError, UnicodeDecodeError):
             return None
 
     if line.startswith("hy2://"):
@@ -464,20 +425,37 @@ def batch_http_test(tcp_results):
     return results
 
 # ========== 串行下载测试 ==========
-def serial_download_test(http_results):
+def serial_download_test(tcp_results, http_results):
     """串行测试下载速度（避免带宽竞争）"""
-    download_nodes = [(r["line"], r["node"], r["id"], r["socks_port"], r["config_path"]) 
-                      for r in http_results if r["http_ok"]]
+    # 新的逻辑：只要TCP成功或HTTP成功任意一个通过，就进行下载测试
+    download_nodes = []
+    
+    # 收集所有TCP成功的节点（即使HTTP失败）
+    for tcp_result in tcp_results:
+        if tcp_result["tcp_ok"]:
+            # 查找对应的HTTP结果
+            http_info = next((hr for hr in http_results if hr["id"] == tcp_result["id"]), None)
+            if http_info:
+                # 有HTTP测试结果，无论成功失败都加入下载测试
+                download_nodes.append((
+                    tcp_result["line"], 
+                    tcp_result["node"], 
+                    tcp_result["id"],
+                    http_info["socks_port"],
+                    http_info["config_path"],
+                    tcp_result["tcp_ok"],
+                    http_info["http_ok"]
+                ))
     
     if not download_nodes:
-        print("⚠️ 没有通过HTTP测试的节点，跳过下载测试")
+        print("⚠️ 没有通过TCP测试的节点，跳过下载测试")
         return []
     
     print(f"📥 开始串行下载测试 ({len(download_nodes)}个节点)...")
     
     results = []
-    for i, (line, node, node_id, socks_port, config_path) in enumerate(download_nodes):
-        print(f"🔄 下载测试进度: {i+1}/{len(download_nodes)} - {node['server']}")
+    for i, (line, node, node_id, socks_port, config_path, tcp_ok, http_ok) in enumerate(download_nodes):
+        print(f"🔄 下载测试进度: {i+1}/{len(download_nodes)} - {node['server']} (TCP: {'✅' if tcp_ok else '❌'}, HTTP: {'✅' if http_ok else '❌'})")
         
         try:
             # 生成配置
@@ -503,7 +481,9 @@ def serial_download_test(http_results):
                     "line": line,
                     "node": node,
                     "speed": speed,
-                    "download_time": download_time
+                    "download_time": download_time,
+                    "tcp_ok": tcp_ok,
+                    "http_ok": http_ok
                 })
                 print(f"✅ 下载成功: {node['server']}, 速度: {speed}Mbps, 时间: {download_time}s")
             else:
@@ -519,7 +499,8 @@ def main():
     start_time = time.time()
     
     print("🚀 开始智能批量节点测试")
-    print(f"📊 配置: TCP/HTTP批量数={BATCH_SIZE}, 下载串行测试={SERIAL_DOWNLOAD}")
+    print(f"📊 配置: 批量数={BATCH_SIZE}, 下载串行测试={SERIAL_DOWNLOAD}")
+    print("🎯 节点保留逻辑: TCP成功或HTTP成功任意一个 + 下载成功")
     print("=" * 60)
     
     # 读取并解析所有节点
@@ -544,48 +525,31 @@ def main():
     print(f"\n📋 总共解析 {len(nodes)} 个节点")
     
     # 阶段1: 批量TCP测试
-    tcp_results = []
-    if TCP_TEST:
-        tcp_results = batch_tcp_test(nodes)
-        tcp_success = sum(1 for r in tcp_results if r["tcp_ok"])
-        print(f"📊 TCP测试结果: {tcp_success}/{len(nodes)} 成功")
-    else:
-        # 如果跳过TCP测试，将所有节点标记为TCP成功
-        tcp_results = [{"line": line, "node": node, "tcp_ok": True, "tcp_ms": -1, "id": i} 
-                       for i, (line, node) in enumerate(nodes)]
-        print("⏭️  跳过TCP测试")
+    tcp_results = batch_tcp_test(nodes)
+    tcp_success = sum(1 for r in tcp_results if r["tcp_ok"])
+    print(f"📊 TCP测试结果: {tcp_success}/{len(nodes)} 成功")
     
     # 阶段2: 批量HTTP测试
-    http_results = []
-    if HTTP_TEST:
-        http_results = batch_http_test(tcp_results)
-        http_success = sum(1 for r in http_results if r["http_ok"])
-        print(f"📊 HTTP测试结果: {http_success}/{len(tcp_results)} 成功")
-    else:
-        # 如果跳过HTTP测试，将TCP成功的节点标记为HTTP成功
-        http_results = [{"line": r["line"], "node": r["node"], "http_ok": True, "http_ms": -1, 
-                        "socks_port": SOCKS_PORT_START + i, "config_path": "", "id": r["id"]} 
-                       for i, r in enumerate(tcp_results) if r["tcp_ok"]]
-        print("⏭️  跳过HTTP测试")
+    http_results = batch_http_test(tcp_results)
+    http_success = sum(1 for r in http_results if r["http_ok"])
+    print(f"📊 HTTP测试结果: {http_success}/{len(tcp_results)} 成功")
     
     # 阶段3: 下载测试
-    final_results = []
-    if DOWNLOAD_TEST:
-        if SERIAL_DOWNLOAD:
-            # 串行下载测试
-            download_results = serial_download_test(http_results)
-        else:
-            # 并行下载测试（不推荐，会互相干扰）
-            print("⚠️ 并行下载测试可能会因带宽竞争导致结果不准确")
-            download_results = serial_download_test(http_results)  # 暂时也用串行
-        
-        final_results = download_results
-        print(f"📊 下载测试结果: {len(download_results)}/{len(http_results)} 成功")
+    if SERIAL_DOWNLOAD:
+        # 串行下载测试
+        download_results = serial_download_test(tcp_results, http_results)
     else:
-        # 如果跳过下载测试，将HTTP成功的节点标记为下载成功
-        final_results = [{"line": r["line"], "node": r["node"], "speed": 0, "download_time": -1, "id": r["id"]} 
-                        for r in http_results if r["http_ok"]]
-        print("⏭️  跳过下载测试")
+        # 并行下载测试（不推荐，会互相干扰）
+        print("⚠️ 并行下载测试可能会因带宽竞争导致结果不准确")
+        download_results = serial_download_test(tcp_results, http_results)  # 暂时也用串行
+    
+    # 新的节点保留逻辑：TCP成功或HTTP成功任意一个 + 下载成功
+    final_results = []
+    for r in download_results:
+        if (r["tcp_ok"] or r["http_ok"]) and r["download_time"] > 0:
+            final_results.append(r)
+    
+    print(f"📊 下载测试结果: {len(final_results)}/{len(download_results)} 符合保留条件")
     
     # 合并所有测试结果
     all_results = []
@@ -600,23 +564,14 @@ def main():
             "tcp_ms": tcp_info.get("tcp_ms", -1),
             "http_ms": http_info.get("http_ms", -1),
             "speed": r.get("speed", 0),
-            "download_time": r.get("download_time", -1)
+            "download_time": r.get("download_time", -1),
+            "tcp_ok": r.get("tcp_ok", False),
+            "http_ok": r.get("http_ok", False)
         }
         all_results.append(result)
     
-    # 排序结果
-    if DOWNLOAD_TEST:
-        # 按下载速度从高到低排序
-        all_results.sort(key=lambda x: (-x["speed"], x["tcp_ms"], x["http_ms"]))
-    elif HTTP_TEST:
-        # 按HTTP延迟从低到高排序
-        all_results.sort(key=lambda x: (x["http_ms"], x["tcp_ms"]))
-    elif TCP_TEST:
-        # 按TCP延迟从低到高排序
-        all_results.sort(key=lambda x: x["tcp_ms"])
-    else:
-        # 保持原顺序
-        pass
+    # 排序结果：按下载速度从高到低排序
+    all_results.sort(key=lambda x: (-x["speed"], x["tcp_ms"], x["http_ms"]))
     
     # 保存结果到ping.txt
     with open("ping.txt", "w", encoding="utf-8") as f:
@@ -625,23 +580,14 @@ def main():
     
     # 保存详细结果到detailed_results.txt
     with open("detailed_results.txt", "w", encoding="utf-8") as f:
-        header = "节点链接"
-        if TCP_TEST:
-            header += "\tTCP延时(ms)"
-        if HTTP_TEST:
-            header += "\tHTTP延时(ms)"
-        if DOWNLOAD_TEST:
-            header += "\t速度(Mbps)\t下载1MB时间(s)"
+        header = "节点链接\tTCP状态\tHTTP状态\tTCP延时(ms)\tHTTP延时(ms)\t速度(Mbps)\t下载1MB时间(s)"
         f.write(header + "\n")
         
         for r in all_results:
             line = r["line"]
-            if TCP_TEST:
-                line += f"\t{r['tcp_ms']}"
-            if HTTP_TEST:
-                line += f"\t{r['http_ms']}"
-            if DOWNLOAD_TEST:
-                line += f"\t{r['speed']}\t{r['download_time']}"
+            line += f"\t{'✅' if r['tcp_ok'] else '❌'}\t{'✅' if r['http_ok'] else '❌'}"
+            line += f"\t{r['tcp_ms']}\t{r['http_ms']}"
+            line += f"\t{r['speed']}\t{r['download_time']}"
             f.write(line + "\n")
     
     # 清理临时文件
@@ -649,23 +595,36 @@ def main():
     
     # 统计信息
     total_time = time.time() - start_time
+    
+    # 统计各类节点数量
+    tcp_only = sum(1 for r in all_results if r["tcp_ok"] and not r["http_ok"])
+    http_only = sum(1 for r in all_results if not r["tcp_ok"] and r["http_ok"])
+    both_ok = sum(1 for r in all_results if r["tcp_ok"] and r["http_ok"])
+    
     print("=" * 60)
     print(f"🎉 测试完成！")
     print(f"📊 总节点数: {len(nodes)}")
-    print(f"✅ 通过测试: {len(all_results)}")
+    print(f"✅ 符合保留条件: {len(all_results)}")
     print(f"⏱️  总耗时: {total_time:.1f}秒")
     print(f"📈 平均每个节点: {total_time/max(1,len(nodes)):.1f}秒")
+    
+    # 显示节点类型统计
+    print(f"📊 节点类型统计:")
+    print(f"   TCP成功+HTTP成功: {both_ok}个")
+    print(f"   TCP成功+HTTP失败: {tcp_only}个") 
+    print(f"   TCP失败+HTTP成功: {http_only}个")
     
     # 显示最佳节点
     if all_results:
         best = all_results[0]
         print(f"🏆 最佳节点: {best['node']['server']}")
-        if TCP_TEST:
+        print(f"   TCP状态: {'✅' if best['tcp_ok'] else '❌'}")
+        print(f"   HTTP状态: {'✅' if best['http_ok'] else '❌'}")
+        if best['tcp_ok']:
             print(f"   TCP延迟: {best['tcp_ms']}ms")
-        if HTTP_TEST:
+        if best['http_ok']:
             print(f"   HTTP延迟: {best['http_ms']}ms")
-        if DOWNLOAD_TEST:
-            print(f"   下载速度: {best['speed']}Mbps")
+        print(f"   下载速度: {best['speed']}Mbps")
     
     print(f"💾 结果已保存到 ping.txt 和 detailed_results.txt")
 
