@@ -47,6 +47,8 @@ HTTP_TEST_URLS = [
     "https://www.gstatic.com/generate_204",
     "https://www.cloudflare.com/cdn-cgi/trace",
     "https://www.google.com/favicon.ico",
+    "https://captive.apple.com/hotspot-detect.html",
+    "https://connectivitycheck.gstatic.com/generate_204"
 ]
 
 # ==========================
@@ -72,6 +74,7 @@ def parse_node(line: str):
     - vmess
     - vless (tls / reality)
     - trojan
+    - ss (shadowsocks)
     """
     try:
         if line.startswith("vmess://"):
@@ -97,16 +100,61 @@ def parse_node(line: str):
                 "sni": q.get("sni", [u.hostname])[0],
                 "public_key": q.get("pbk", [""])[0],
                 "short_id": q.get("sid", [""])[0],
+                "flow": q.get("flow", [""])[0],
             }
 
         if line.startswith("trojan://"):
             u = urlparse(line)
+            q = parse_qs(u.query)
             return {
                 "type": "trojan",
                 "server": u.hostname,
                 "port": u.port or 443,
-                "password": u.username
+                "password": u.username,
+                "sni": q.get("sni", [u.hostname])[0]
             }
+            
+        if line.startswith("ss://"):
+            # 处理 shadowsocks 协议
+            try:
+                # 去掉协议头
+                ss_part = line[5:]
+                if "#" in ss_part:
+                    ss_part = ss_part.split("#")[0]
+                    
+                # 处理 base64 编码
+                if "@" in ss_part:
+                    # 标准格式: method:password@server:port
+                    if ":" not in ss_part.split("@")[0]:
+                        # base64 编码的用户信息
+                        user_info = base64.b64decode(ss_part.split("@")[0] + "==").decode()
+                        server_part = ss_part.split("@")[1]
+                        method, password = user_info.split(":", 1)
+                    else:
+                        # 明文格式
+                        user_server = ss_part.split("//")[-1]
+                        method_password, server_port = user_server.split("@", 1)
+                        method, password = method_password.split(":", 1)
+                else:
+                    # 整个都是 base64
+                    decoded = base64.b64decode(ss_part.split("#")[0] + "==").decode()
+                    method_password, server_port = decoded.rsplit("@", 1)
+                    method, password = method_password.split(":", 1)
+                
+                server, port = server_port.split(":", 1)
+                port = int(port)
+                
+                return {
+                    "type": "shadowsocks",
+                    "server": server,
+                    "port": port,
+                    "method": method,
+                    "password": password
+                }
+            except Exception as e:
+                log.debug(f"SS 节点解析失败: {e}")
+                return None
+                
     except Exception as e:
         log.debug(f"节点解析失败: {e}")
 
@@ -126,7 +174,10 @@ def build_xray_config(node: dict, socks_port: int) -> dict:
             "port": socks_port,
             "listen": "127.0.0.1",
             "protocol": "socks",
-            "settings": {"udp": False}
+            "settings": {
+                "udp": False,
+                "auth": "noauth"
+            }
         }],
         "outbounds": [
             build_outbound(node),
@@ -135,7 +186,8 @@ def build_xray_config(node: dict, socks_port: int) -> dict:
         "routing": {
             "rules": [{
                 "type": "field",
-                "outboundTag": "proxy"
+                "outboundTag": "proxy",
+                "inboundTag": ["socks"]
             }]
         }
     }
@@ -145,7 +197,7 @@ def build_outbound(n: dict) -> dict:
     根据节点类型生成 outbound
     """
     if n["type"] == "vmess":
-        return {
+        outbound = {
             "tag": "proxy",
             "protocol": "vmess",
             "settings": {
@@ -160,11 +212,19 @@ def build_outbound(n: dict) -> dict:
                 }]
             },
             "streamSettings": {
-                "security": "tls"
-            } if n["tls"] else {}
+                "network": "tcp"
+            }
         }
+        
+        if n["tls"]:
+            outbound["streamSettings"]["security"] = "tls"
+            outbound["streamSettings"]["tlsSettings"] = {
+                "serverName": n["server"]
+            }
+            
+        return outbound
 
-    if n["type"] == "vless":
+    elif n["type"] == "vless":
         outbound = {
             "tag": "proxy",
             "protocol": "vless",
@@ -174,27 +234,34 @@ def build_outbound(n: dict) -> dict:
                     "port": n["port"],
                     "users": [{
                         "id": n["uuid"],
-                        "encryption": "none"
+                        "encryption": "none",
+                        "flow": n.get("flow", "")
                     }]
                 }]
             },
-            "streamSettings": {}
+            "streamSettings": {
+                "network": "tcp"
+            }
         }
 
         if n["security"] in ("tls", "reality"):
-            outbound["streamSettings"]["security"] = "tls"
+            outbound["streamSettings"]["security"] = n["security"]
             outbound["streamSettings"]["tlsSettings"] = {
                 "serverName": n["sni"]
             }
+            
             if n["security"] == "reality":
                 outbound["streamSettings"]["realitySettings"] = {
+                    "show": False,
+                    "fingerprint": "chrome",
+                    "serverName": n["sni"],
                     "publicKey": n["public_key"],
                     "shortId": n["short_id"]
                 }
 
         return outbound
 
-    if n["type"] == "trojan":
+    elif n["type"] == "trojan":
         return {
             "tag": "proxy",
             "protocol": "trojan",
@@ -205,10 +272,29 @@ def build_outbound(n: dict) -> dict:
                     "password": n["password"]
                 }]
             },
-            "streamSettings": {"security": "tls"}
+            "streamSettings": {
+                "security": "tls",
+                "tlsSettings": {
+                    "serverName": n.get("sni", n["server"])
+                }
+            }
+        }
+        
+    elif n["type"] == "shadowsocks":
+        return {
+            "tag": "proxy",
+            "protocol": "shadowsocks",
+            "settings": {
+                "servers": [{
+                    "address": n["server"],
+                    "port": n["port"],
+                    "method": n["method"],
+                    "password": n["password"]
+                }]
+            }
         }
 
-    raise ValueError("不支持的节点类型")
+    raise ValueError(f"不支持的节点类型: {n['type']}")
 
 # ==========================
 # 测试函数
@@ -222,9 +308,10 @@ def tcp_test_twice(host: str, port: int) -> bool:
         try:
             s = socket.create_connection((host, port), timeout=TCP_TIMEOUT)
             s.close()
-            time.sleep(TCP_INTERVAL)
+            if i == 0:  # 第一次成功后稍作延迟
+                time.sleep(TCP_INTERVAL)
         except Exception as e:
-            log.debug(f"TCP 第 {i+1} 次失败: {e}")
+            log.debug(f"TCP 第 {i+1} 次失败 {host}:{port} - {e}")
             return False
     return True
 
@@ -234,80 +321,186 @@ def http_test_random_two(socks_port: int) -> bool:
     """
     urls = random.sample(HTTP_TEST_URLS, 2)
     proxies = {
-        "http": f"socks5h://127.0.0.1:{socks_port}",
-        "https": f"socks5h://127.0.0.1:{socks_port}",
+        "http": f"socks5://127.0.0.1:{socks_port}",
+        "https": f"socks5://127.0.0.1:{socks_port}",
     }
 
     for url in urls:
         try:
-            r = requests.head(
+            # 使用 GET 而不是 HEAD，因为某些网站可能不支持 HEAD
+            r = requests.get(
                 url,
                 proxies=proxies,
                 timeout=HTTP_TIMEOUT,
-                allow_redirects=True
+                allow_redirects=True,
+                stream=True  # 不下载内容
             )
-            if r.status_code in (200, 204):
+            r.close()  # 立即关闭连接
+            
+            if r.status_code in (200, 204, 301, 302):
+                log.debug(f"HTTP 测试成功: {url}")
                 return True
+                
         except Exception as e:
             log.debug(f"HTTP 测试失败 {url}: {e}")
 
     return False
 
 # ==========================
+# 订阅文件处理
+# ==========================
+
+def decode_subscription(content: str) -> list:
+    """
+    处理订阅内容，可能是 base64 编码的
+    """
+    lines = []
+    
+    # 尝试直接按行分割
+    direct_lines = [line.strip() for line in content.splitlines() if line.strip()]
+    
+    # 检查是否有明显的协议头
+    has_protocol = any(line.startswith(('vmess://', 'vless://', 'trojan://', 'ss://')) 
+                      for line in direct_lines)
+    
+    if has_protocol:
+        return direct_lines
+    
+    # 如果没有明显协议头，尝试 base64 解码
+    try:
+        decoded = base64.b64decode(content).decode('utf-8')
+        decoded_lines = [line.strip() for line in decoded.splitlines() if line.strip()]
+        return decoded_lines
+    except:
+        pass
+    
+    # 如果都不行，返回原始内容
+    return direct_lines
+
+# ==========================
 # 单节点测试流程
 # ==========================
 
 def test_single_node(index: int, line: str, node: dict):
+    """
+    测试单个节点
+    """
     socks_port = SOCKS_PORT_BASE + index
-    cfg_path = f"{WORKDIR}/{index}.json"
-
-    with open(cfg_path, "w", encoding="utf-8") as f:
-        json.dump(build_xray_config(node, socks_port), f, indent=2)
-
-    process = subprocess.Popen([XRAY_BIN, "run", "-config", cfg_path])
-    time.sleep(XRAY_BOOT_WAIT)
+    cfg_path = f"{WORKDIR}/config_{index}.json"
+    
+    log.info(f"测试节点 {index+1}: {node['server']}:{node['port']} ({node['type']})")
 
     try:
+        # 生成 Xray 配置
+        config = build_xray_config(node, socks_port)
+        with open(cfg_path, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2, ensure_ascii=False)
+
+        # 启动 Xray
+        process = subprocess.Popen(
+            [XRAY_BIN, "run", "-config", cfg_path],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        time.sleep(XRAY_BOOT_WAIT)
+
+        # 检查进程是否正常运行
+        if process.poll() is not None:
+            log.info(f"❌ Xray 启动失败: {node['server']}")
+            return None
+
+        # 执行测试
         if not tcp_test_twice(node["server"], node["port"]):
-            log.info(f"❌ TCP 不稳定: {node['server']}")
+            log.info(f"❌ TCP 连接失败: {node['server']}")
             return None
 
         if not http_test_random_two(socks_port):
-            log.info(f"❌ HTTP 不通: {node['server']}")
+            log.info(f"❌ HTTP 代理失败: {node['server']}")
             return None
 
         log.info(f"✅ 可用节点: {node['server']}")
         return line
 
+    except Exception as e:
+        log.debug(f"测试过程异常: {e}")
+        return None
+        
     finally:
-        process.terminate()
-        process.wait()
-        os.remove(cfg_path)
+        # 清理进程
+        try:
+            process.terminate()
+            process.wait(timeout=3)
+        except:
+            try:
+                process.kill()
+            except:
+                pass
+        
+        # 删除临时配置文件
+        try:
+            os.remove(cfg_path)
+        except:
+            pass
 
 # ==========================
 # 主流程
 # ==========================
 
 def main():
-    with open("sub.txt", "r", encoding="utf-8") as f:
-        lines = [l.strip() for l in f if l.strip()]
+    # 检查 Xray 二进制文件是否存在
+    if not os.path.exists(XRAY_BIN):
+        log.error(f"Xray 二进制文件不存在: {XRAY_BIN}")
+        log.error("请确保已通过 GitHub Actions 下载 Xray")
+        return
+    
+    # 检查订阅文件是否存在
+    if not os.path.exists("sub.txt"):
+        log.error("订阅文件 sub.txt 不存在")
+        return
+
+    # 读取并处理订阅内容
+    try:
+        with open("sub.txt", "r", encoding="utf-8") as f:
+            content = f.read()
+        
+        lines = decode_subscription(content)
+        log.info(f"解析到 {len(lines)} 个节点")
+        
+    except Exception as e:
+        log.error(f"读取订阅文件失败: {e}")
+        return
 
     ok_nodes = []
+    tested_count = 0
 
     for idx, line in enumerate(lines):
+        if not line or len(line) < 10:  # 跳过过短的行
+            continue
+            
         node = parse_node(line)
         if not node:
+            log.debug(f"无法解析节点: {line[:50]}...")
             continue
 
+        tested_count += 1
         result = test_single_node(idx, line, node)
         if result:
             ok_nodes.append(result)
+            
+        # 短暂延迟，避免过于频繁
+        time.sleep(0.5)
 
+    # 保存可用节点
     with open("ping.txt", "w", encoding="utf-8") as f:
         f.write("\n".join(ok_nodes))
 
-    shutil.rmtree(WORKDIR, ignore_errors=True)
-    log.info(f"完成，可用节点 {len(ok_nodes)} 个")
+    # 清理工作目录
+    try:
+        shutil.rmtree(WORKDIR, ignore_errors=True)
+    except:
+        pass
+
+    log.info(f"测试完成: 共测试 {tested_count} 个节点，可用 {len(ok_nodes)} 个")
 
 if __name__ == "__main__":
     main()
