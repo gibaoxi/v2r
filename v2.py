@@ -644,5 +644,5 @@ def main():
                 line += f"\t{r['speed']}\t{r['download_time']}"
             f.write(line + "\n")
 
-print(f"可用节点数: {len(results)}")
+print(f"可用节点数: {len(all_results)}")
 print("详细结果已保存到 detailed_results.txt")
