@@ -16,7 +16,7 @@ from typing import List, Dict, Any, Optional, Tuple
 
 # ========== 配置区域 ==========
 # 测试参数
-BATCH_SIZE = 5                    # 同时测试的最大节点数
+BATCH_SIZE = 2                    # 同时测试的最大节点数
 SERIAL_DOWNLOAD = True           # 串行下载测试（避免带宽竞争）
 MAX_TEST_TIME = 300              # 最大测试时间（秒）
 
@@ -27,7 +27,7 @@ SOCKS_PORT_START = 10808
 
 # 测试端点
 HTTP_TEST_URLS = [
-    "https://www.google.com/generate_204",
+    "https://www.google.com",
     "https://cloudflare.com",
     "https://www.bing.com"
 ]
