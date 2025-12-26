@@ -2,16 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-Xray 节点可用性测试（安全版）
-
-判定规则：
-1. TCP 直连测试 2 次（任意 1 次成功即可）
-2. HTTP 测试：从 N 个 URL 中随机选 2 个（任意 1 个成功即可）
-
-设计目标：
-- 可在 GitHub Actions 长期运行
-- 不测速、不下载、不并发 HTTP
-- 尽量不触发节点风控
+Xray 节点可用性测试（完整修复版）
+专门修复 VLESS Reality 协议问题
 """
 
 import os
@@ -36,17 +28,16 @@ WORKDIR = "./xray_tmp"
 SOCKS_PORT_BASE = 10800
 
 TCP_TIMEOUT = 5
-HTTP_TIMEOUT = 8
+HTTP_TIMEOUT = 10
 
-TCP_INTERVAL = 0.6        # 两次 TCP 间隔
-XRAY_BOOT_WAIT = 2.0      # Xray 启动等待
+TCP_INTERVAL = 0.6
+XRAY_BOOT_WAIT = 3.0
 
 HTTP_TEST_URLS = [
-    "https://www.gstatic.com/generate_204",
-    "https://www.cloudflare.com/cdn-cgi/trace",
-    "https://www.google.com/favicon.ico",
-    "https://captive.apple.com/hotspot-detect.html",
-    "https://connectivitycheck.gstatic.com/generate_204"
+    "http://www.google.com/generate_204",
+    "http://www.apple.com/library/test/success.html",
+    "http://connectivitycheck.android.com/generate_204",
+    "http://www.msftconnecttest.com/connecttest.txt",
 ]
 
 # ==========================
@@ -62,74 +53,86 @@ log = logging.getLogger("xray-check")
 os.makedirs(WORKDIR, exist_ok=True)
 
 # ==========================
-# 节点解析
+# 节点解析 - 修复 Reality 参数解析
 # ==========================
 
 def parse_node(line: str):
     """
-    解析 sub.txt 中的节点
-    目前支持：
-    - vmess
-    - vless (tls / reality)
-    - trojan
-    - ss (shadowsocks)
+    解析 sub.txt 中的节点，特别修复 Reality 协议解析
     """
     try:
         if line.startswith("vmess://"):
-            raw = base64.b64decode(line[8:] + "==").decode()
-            j = json.loads(raw)
-            return {
-                "type": "vmess",
-                "server": j["add"],
-                "port": int(j["port"]),
-                "uuid": j["id"],
-                "tls": j.get("tls") == "tls"
-            }
+            try:
+                raw = base64.b64decode(line[8:] + "==").decode()
+                j = json.loads(raw)
+                return {
+                    "type": "vmess",
+                    "server": j["add"],
+                    "port": int(j["port"]),
+                    "uuid": j["id"],
+                    "tls": j.get("tls") == "tls"
+                }
+            except Exception as e:
+                log.debug(f"VMess 解析失败: {e}")
+                return None
 
         if line.startswith("vless://"):
-            u = urlparse(line)
-            q = parse_qs(u.query)
-            return {
-                "type": "vless",
-                "server": u.hostname,
-                "port": u.port or 443,
-                "uuid": u.username,
-                "security": q.get("security", [""])[0],
-                "sni": q.get("sni", [u.hostname])[0],
-                "public_key": q.get("pbk", [""])[0],
-                "short_id": q.get("sid", [""])[0],
-                "flow": q.get("flow", [""])[0],
-            }
+            try:
+                u = urlparse(line)
+                q = parse_qs(u.query)
+                
+                # 调试输出解析的参数
+                log.debug(f"VLESS 参数: {dict(q)}")
+                
+                return {
+                    "type": "vless",
+                    "server": u.hostname,
+                    "port": u.port or 443,
+                    "uuid": u.username,
+                    "security": q.get("security", [""])[0],
+                    "sni": q.get("sni", [""])[0] or u.hostname,  # 修复 sni 获取
+                    "public_key": q.get("pbk", [""])[0],
+                    "short_id": q.get("sid", [""])[0],
+                    "flow": q.get("flow", [""])[0],
+                    "fp": q.get("fp", [""])[0],
+                    "type_param": q.get("type", ["tcp"])[0],
+                    "packetEncoding": q.get("packetEncoding", [""])[0],
+                    "encryption": q.get("encryption", ["none"])[0],
+                    "host": q.get("host", [""])[0],
+                    "path": q.get("path", [""])[0],
+                }
+            except Exception as e:
+                log.debug(f"VLESS 解析失败: {e}")
+                return None
 
         if line.startswith("trojan://"):
-            u = urlparse(line)
-            q = parse_qs(u.query)
-            return {
-                "type": "trojan",
-                "server": u.hostname,
-                "port": u.port or 443,
-                "password": u.username,
-                "sni": q.get("sni", [u.hostname])[0]
-            }
+            try:
+                u = urlparse(line)
+                q = parse_qs(u.query)
+                return {
+                    "type": "trojan",
+                    "server": u.hostname,
+                    "port": u.port or 443,
+                    "password": u.username,
+                    "sni": q.get("sni", [u.hostname])[0]
+                }
+            except Exception as e:
+                log.debug(f"Trojan 解析失败: {e}")
+                return None
             
         if line.startswith("ss://"):
-            # 处理 shadowsocks 协议
             try:
-                # 去掉协议头和可能存在的标签
                 ss_part = line[5:]
                 if "#" in ss_part:
                     ss_part = ss_part.split("#")[0]
                 
-                # 检查是否是 base64 编码的完整格式
                 if "@" not in ss_part and ":" not in ss_part:
-                    # 整个是 base64 编码
                     decoded = base64.b64decode(ss_part + "==").decode('utf-8')
                     if "@" in decoded:
                         method_password, server_port = decoded.split("@", 1)
                         method, password = method_password.split(":", 1)
                         server, port = server_port.split(":", 1)
                     else:
-                        # 可能是 legacy 格式
                         parts = decoded.split(":")
                         if len(parts) >= 3:
                             method = parts[0]
@@ -139,20 +142,16 @@ def parse_node(line: str):
                         else:
                             return None
                 else:
-                    # 标准格式: ss://method:password@server:port
                     if "@" in ss_part:
                         user_info, server_port = ss_part.split("@", 1)
                         if ":" in user_info:
-                            # 明文格式
                             method, password = user_info.split(":", 1)
                         else:
-                            # base64 编码的用户信息
                             user_info_decoded = base64.b64decode(user_info + "==").decode('utf-8')
                             method, password = user_info_decoded.split(":", 1)
                         
                         server, port = server_port.split(":", 1)
                     else:
-                        # 没有 @，可能是 legacy 格式
                         parts = ss_part.split(":")
                         if len(parts) >= 3:
                             method = parts[0]
@@ -172,16 +171,16 @@ def parse_node(line: str):
                     "password": password
                 }
             except Exception as e:
-                log.debug(f"SS 节点解析失败 {line[:50]}...: {e}")
+                log.debug(f"SS 节点解析失败: {e}")
                 return None
                 
     except Exception as e:
-        log.debug(f"节点解析失败 {line[:50]}...: {e}")
+        log.debug(f"节点解析失败: {e}")
 
     return None
 
 # ==========================
-# Xray 配置生成
+# Xray 配置生成 - 修复 Reality 配置
 # ==========================
 
 def build_xray_config(node: dict, socks_port: int) -> dict:
@@ -191,7 +190,9 @@ def build_xray_config(node: dict, socks_port: int) -> dict:
     inbound_tag = "socks-in"
     
     config = {
-        "log": {"loglevel": "error"},
+        "log": {
+            "loglevel": "warning",
+        },
         "inbounds": [{
             "tag": inbound_tag,
             "port": socks_port,
@@ -219,7 +220,7 @@ def build_xray_config(node: dict, socks_port: int) -> dict:
 
 def build_outbound(n: dict) -> dict:
     """
-    根据节点类型生成 outbound
+    根据节点类型生成 outbound，特别修复 Reality 配置
     """
     if n["type"] == "vmess":
         outbound = {
@@ -250,6 +251,7 @@ def build_outbound(n: dict) -> dict:
         return outbound
 
     elif n["type"] == "vless":
+        # 构建基础配置
         outbound = {
             "tag": "proxy",
             "protocol": "vless",
@@ -259,31 +261,54 @@ def build_outbound(n: dict) -> dict:
                     "port": n["port"],
                     "users": [{
                         "id": n["uuid"],
-                        "encryption": "none",
+                        "encryption": n.get("encryption", "none"),
                         "flow": n.get("flow", "")
                     }]
                 }]
             },
             "streamSettings": {
-                "network": "tcp"
+                "network": n.get("type_param", "tcp")
             }
         }
 
+        # 处理 packetEncoding
+        if n.get("packetEncoding"):
+            outbound["streamSettings"]["packetEncoding"] = n["packetEncoding"]
+
         security = n.get("security", "")
+        log.debug(f"构建 VLESS 配置，安全协议: {security}")
+        
         if security in ("tls", "reality"):
             outbound["streamSettings"]["security"] = security
-            outbound["streamSettings"]["tlsSettings"] = {
+            
+            # TLS 基础设置
+            tls_settings = {
                 "serverName": n.get("sni", n["server"])
             }
             
+            # 添加指纹
+            if n.get("fp"):
+                tls_settings["fingerprint"] = n["fp"]
+                
+            outbound["streamSettings"]["tlsSettings"] = tls_settings
+            
+            # Reality 特殊设置
             if security == "reality":
-                outbound["streamSettings"]["realitySettings"] = {
+                reality_settings = {
                     "show": False,
-                    "fingerprint": "chrome",
+                    "fingerprint": n.get("fp", "firefox"),  # 默认使用 firefox
                     "serverName": n.get("sni", n["server"]),
                     "publicKey": n.get("public_key", ""),
-                    "shortId": n.get("short_id", "")
+                    "shortId": n.get("short_id", ""),
+                    "spiderX": "/"
                 }
+                
+                # 只有存在公钥时才添加 realitySettings
+                if n.get("public_key"):
+                    outbound["streamSettings"]["realitySettings"] = reality_settings
+                    log.debug(f"Reality 配置: publicKey={n.get('public_key')}, shortId={n.get('short_id')}")
+                else:
+                    log.warning("Reality 节点缺少公钥配置")
 
         return outbound
 
@@ -339,39 +364,62 @@ def tcp_test_twice(host: str, port: int) -> bool:
             return True
         except Exception as e:
             log.debug(f"TCP 第 {i+1} 次失败 {host}:{port} - {e}")
-            if i == 0:  # 第一次失败后等待一下再试第二次
+            if i == 0:
                 time.sleep(TCP_INTERVAL)
     
     return False
 
-def http_test_random_two(socks_port: int) -> bool:
+def http_test_with_retry(socks_port: int, max_retries: int = 2) -> bool:
     """
-    从 URL 列表中随机选 2 个进行测试，任意一个成功即可
+    HTTP 测试，增加重试机制
     """
-    urls = random.sample(HTTP_TEST_URLS, 2)
+    test_urls = random.sample(HTTP_TEST_URLS, min(2, len(HTTP_TEST_URLS)))
     proxies = {
         "http": f"socks5://127.0.0.1:{socks_port}",
         "https": f"socks5://127.0.0.1:{socks_port}",
     }
-
-    for url in urls:
-        try:
-            # 使用 GET 而不是 HEAD，因为某些网站可能不支持 HEAD
-            r = requests.get(
-                url,
-                proxies=proxies,
-                timeout=HTTP_TIMEOUT,
-                allow_redirects=True,
-                stream=True  # 不下载内容
-            )
-            r.close()  # 立即关闭连接
-            
-            if r.status_code in (200, 204, 301, 302):
-                log.debug(f"HTTP 测试成功: {url}")
-                return True
+    
+    for url in test_urls:
+        for retry in range(max_retries):
+            try:
+                log.debug(f"HTTP 测试尝试 {retry+1}: {url}")
                 
-        except Exception as e:
-            log.debug(f"HTTP 测试失败 {url}: {e}")
+                # 先测试代理端口是否可用
+                try:
+                    s = socket.create_connection(("127.0.0.1", socks_port), timeout=2)
+                    s.close()
+                except:
+                    log.debug(f"代理端口 {socks_port} 不可用")
+                    return False
+                
+                r = requests.get(
+                    url,
+                    proxies=proxies,
+                    timeout=HTTP_TIMEOUT,
+                    allow_redirects=True,
+                    stream=True
+                )
+                r.close()
+                
+                log.debug(f"HTTP 状态码: {r.status_code}")
+                
+                if r.status_code in (200, 204, 301, 302):
+                    log.debug(f"HTTP 测试成功: {url}")
+                    return True
+                    
+            except requests.exceptions.ProxyError as e:
+                log.debug(f"代理错误 {url} (尝试 {retry+1}): {e}")
+            except requests.exceptions.ConnectTimeout as e:
+                log.debug(f"连接超时 {url} (尝试 {retry+1}): {e}")
+            except requests.exceptions.ReadTimeout as e:
+                log.debug(f"读取超时 {url} (尝试 {retry+1}): {e}")
+            except requests.exceptions.ConnectionError as e:
+                log.debug(f"连接错误 {url} (尝试 {retry+1}): {e}")
+            except Exception as e:
+                log.debug(f"其他错误 {url} (尝试 {retry+1}): {e}")
+            
+            if retry < max_retries - 1:
+                time.sleep(1)  # 重试前等待
 
     return False
 
@@ -385,17 +433,14 @@ def decode_subscription(content: str) -> list:
     """
     lines = []
     
-    # 尝试直接按行分割
     direct_lines = [line.strip() for line in content.splitlines() if line.strip()]
     
-    # 检查是否有明显的协议头
     has_protocol = any(line.startswith(('vmess://', 'vless://', 'trojan://', 'ss://')) 
                       for line in direct_lines)
     
     if has_protocol:
         return direct_lines
     
-    # 如果没有明显协议头，尝试 base64 解码
     try:
         decoded = base64.b64decode(content).decode('utf-8')
         decoded_lines = [line.strip() for line in decoded.splitlines() if line.strip()]
@@ -403,7 +448,6 @@ def decode_subscription(content: str) -> list:
     except:
         pass
     
-    # 如果都不行，返回原始内容
     return direct_lines
 
 # ==========================
@@ -425,18 +469,26 @@ def test_single_node(index: int, line: str, node: dict):
         config = build_xray_config(node, socks_port)
         with open(cfg_path, "w", encoding="utf-8") as f:
             json.dump(config, f, indent=2, ensure_ascii=False)
+        
+        log.debug(f"Xray 配置文件已生成: {cfg_path}")
+        
+        # 保存配置文件用于调试
+        debug_cfg_path = f"{WORKDIR}/debug_config_{index}.json"
+        with open(debug_cfg_path, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2, ensure_ascii=False)
 
         # 启动 Xray
         process = subprocess.Popen(
             [XRAY_BIN, "run", "-config", cfg_path],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
         )
         time.sleep(XRAY_BOOT_WAIT)
 
         # 检查进程是否正常运行
         if process.poll() is not None:
-            log.info(f"❌ Xray 启动失败: {node['server']}")
+            stdout, stderr = process.communicate()
+            log.error(f"Xray 启动失败: {stderr.decode()}")
             return None
 
         # 执行测试
@@ -444,7 +496,7 @@ def test_single_node(index: int, line: str, node: dict):
             log.info(f"❌ TCP 连接失败: {node['server']}")
             return None
 
-        if not http_test_random_two(socks_port):
+        if not http_test_with_retry(socks_port):
             log.info(f"❌ HTTP 代理失败: {node['server']}")
             return None
 
@@ -452,7 +504,7 @@ def test_single_node(index: int, line: str, node: dict):
         return line
 
     except Exception as e:
-        log.debug(f"测试过程异常: {e}")
+        log.error(f"测试过程异常: {e}")
         return None
         
     finally:
@@ -470,6 +522,7 @@ def test_single_node(index: int, line: str, node: dict):
         # 删除临时配置文件
         try:
             os.remove(cfg_path)
+            os.remove(f"{WORKDIR}/debug_config_{index}.json")
         except:
             pass
 
@@ -506,7 +559,7 @@ def main():
     node_types = {}
 
     for idx, line in enumerate(lines):
-        if not line or len(line) < 10:  # 跳过过短的行
+        if not line or len(line) < 10:
             continue
             
         node = parse_node(line)
