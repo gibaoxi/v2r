@@ -23,7 +23,7 @@ CONFIG_DIR = "./temp_configs"
 SOCKS_PORT_START = 10808
 
 HTTP_TEST_URLS = ["https://cloudflare.com"]
-DOWNLOAD_URL = "https://speed.cloudflare.com/__down?bytes=1048576"
+DOWNLOAD_URL = "https://dl.google.com/dl/android/studio/install/3.6.3.0/android-studio-ide-192.6392135-windows.exe"
 
 # 创建临时配置目录
 os.makedirs(CONFIG_DIR, exist_ok=True)
