@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-Xray 节点可用性测试（简化配置版）
-修复 VLESS Reality 配置问题
+Xray 节点可用性测试（并发版）
+支持批量并发测试节点
 """
 
 import os
@@ -15,6 +15,8 @@ import time
 import random
 import shutil
 import logging
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urlparse, parse_qs
 
 import requests
@@ -33,11 +35,14 @@ HTTP_TIMEOUT = 10
 TCP_INTERVAL = 0.6
 XRAY_BOOT_WAIT = 3.0
 
+# 并发测试配置
+CONCURRENT_TESTS = 3  # 同时测试的节点数量，可根据需要调整
+
 HTTP_TEST_URLS = [
     "http://www.google.com/generate_204",
     "http://www.apple.com/library/test/success.html",
     "http://connectivitycheck.android.com/generate_204",
-    "https://ms.bdstatic.com/se/static/wiseindex/img/favicon64_587c374.ico",
+    "http://www.msftconnecttest.com/connecttest.txt",
 ]
 
 # ==========================
@@ -155,7 +160,7 @@ def parse_node(line: str):
     return None
 
 # ==========================
-# Xray 配置生成 - 修复配置
+# Xray 配置生成
 # ==========================
 
 def build_xray_config(node: dict, socks_port: int) -> dict:
@@ -263,7 +268,6 @@ def build_vless_outbound(n: dict) -> dict:
         outbound["streamSettings"]["packetEncoding"] = n["packetEncoding"]
     
     security = n.get("security", "")
-    log.info(f"构建 VLESS 配置，安全协议: {security}")
     
     if security == "reality":
         # Reality 协议配置
@@ -334,10 +338,8 @@ def tcp_test_twice(host: str, port: int) -> bool:
         try:
             s = socket.create_connection((host, port), timeout=TCP_TIMEOUT)
             s.close()
-            log.debug(f"TCP 测试成功: {host}:{port}")
             return True
         except Exception as e:
-            log.debug(f"TCP 第 {i+1} 次失败: {e}")
             if i == 0:
                 time.sleep(TCP_INTERVAL)
     
@@ -357,14 +359,12 @@ def http_test_simple(socks_port: int) -> bool:
         s = socket.create_connection(("127.0.0.1", socks_port), timeout=2)
         s.close()
     except:
-        log.debug("代理端口未监听")
         return False
     
     test_urls = random.sample(HTTP_TEST_URLS, min(2, len(HTTP_TEST_URLS)))
     
     for url in test_urls:
         try:
-            log.debug(f"测试 URL: {url}")
             response = requests.get(
                 url,
                 proxies=proxies,
@@ -375,11 +375,10 @@ def http_test_simple(socks_port: int) -> bool:
             response.close()
             
             if response.status_code in (200, 204, 301, 302):
-                log.debug(f"HTTP 测试成功: {url}")
                 return True
                 
-        except Exception as e:
-            log.debug(f"HTTP 测试失败 {url}: {e}")
+        except Exception:
+            continue
     
     return False
 
@@ -407,10 +406,11 @@ def decode_subscription(content: str) -> list:
 # 单节点测试流程
 # ==========================
 
-def test_single_node(index: int, line: str, node: dict):
+def test_single_node(args):
     """
-    测试单个节点
+    测试单个节点 - 修改为接收参数元组，便于线程池使用
     """
+    index, line, node = args
     socks_port = SOCKS_PORT_BASE + index
     cfg_path = f"{WORKDIR}/config_{index}.json"
     
@@ -421,11 +421,9 @@ def test_single_node(index: int, line: str, node: dict):
         # 生成配置
         config = build_xray_config(node, socks_port)
         
-        # 保存配置用于调试
+        # 保存配置
         with open(cfg_path, "w", encoding="utf-8") as f:
             json.dump(config, f, indent=2, ensure_ascii=False)
-        
-        log.debug(f"配置文件已生成: {cfg_path}")
         
         # 启动 Xray
         process = subprocess.Popen(
@@ -440,25 +438,20 @@ def test_single_node(index: int, line: str, node: dict):
         
         # 检查进程状态
         if process.poll() is not None:
-            stdout, stderr = process.communicate()
-            log.error(f"Xray 启动失败: {stderr}")
             return None
         
         # TCP 测试
         if not tcp_test_twice(node["server"], node["port"]):
-            log.info(f"❌ TCP 失败: {node['server']}")
             return None
         
         # HTTP 测试
         if not http_test_simple(socks_port):
-            log.info(f"❌ HTTP 失败: {node['server']}")
             return None
         
         log.info(f"✅ 可用节点: {node['server']}")
         return line
         
     except Exception as e:
-        log.error(f"测试异常: {e}")
         return None
         
     finally:
@@ -479,6 +472,45 @@ def test_single_node(index: int, line: str, node: dict):
             pass
 
 # ==========================
+# 批量测试函数
+# ==========================
+
+def batch_test_nodes(node_list, concurrent_tests=CONCURRENT_TESTS):
+    """
+    批量测试节点，支持并发
+    """
+    ok_nodes = []
+    total_nodes = len(node_list)
+    
+    log.info(f"开始批量测试 {total_nodes} 个节点，并发数: {concurrent_tests}")
+    
+    with ThreadPoolExecutor(max_workers=concurrent_tests) as executor:
+        # 提交所有测试任务
+        future_to_node = {
+            executor.submit(test_single_node, (idx, line, node)): (idx, line, node) 
+            for idx, (line, node) in enumerate(node_list)
+        }
+        
+        # 处理完成的任务
+        completed = 0
+        for future in as_completed(future_to_node):
+            idx, line, node = future_to_node[future]
+            completed += 1
+            
+            try:
+                result = future.result()
+                if result:
+                    ok_nodes.append(result)
+            except Exception as e:
+                log.debug(f"节点测试异常: {e}")
+            
+            # 进度显示
+            if completed % 10 == 0 or completed == total_nodes:
+                log.info(f"测试进度: {completed}/{total_nodes}，已发现 {len(ok_nodes)} 个可用节点")
+    
+    return ok_nodes
+
+# ==========================
 # 主流程
 # ==========================
 
@@ -488,13 +520,13 @@ def main():
         log.error(f"Xray 不存在: {XRAY_BIN}")
         return
     
-    if not os.path.exists("all_configs.txt"):
+    if not os.path.exists("sub.txt"):
         log.error("订阅文件不存在")
         return
     
     # 读取订阅
     try:
-        with open("all_configs.txt", "r", encoding="utf-8") as f:
+        with open("sub.txt", "r", encoding="utf-8") as f:
             content = f.read()
         
         lines = decode_subscription(content)
@@ -504,24 +536,24 @@ def main():
         log.error(f"读取订阅失败: {e}")
         return
     
-    # 测试节点
-    ok_nodes = []
-    tested = 0
-    
-    for idx, line in enumerate(lines):
+    # 解析节点
+    valid_nodes = []
+    for line in lines:
         if not line.strip():
             continue
             
         node = parse_node(line)
-        if not node:
-            continue
-            
-        tested += 1
-        result = test_single_node(idx, line, node)
-        if result:
-            ok_nodes.append(result)
-        
-        time.sleep(0.5)  # 延迟
+        if node:
+            valid_nodes.append((line, node))
+    
+    log.info(f"成功解析 {len(valid_nodes)} 个有效节点")
+    
+    if not valid_nodes:
+        log.error("没有找到有效节点")
+        return
+    
+    # 批量测试节点
+    ok_nodes = batch_test_nodes(valid_nodes, CONCURRENT_TESTS)
     
     # 保存结果
     with open("ping.txt", "w", encoding="utf-8") as f:
@@ -533,7 +565,43 @@ def main():
     except:
         pass
     
-    log.info(f"测试完成: {tested} 个节点中 {len(ok_nodes)} 个可用")
+    log.info(f"测试完成: {len(valid_nodes)} 个节点中 {len(ok_nodes)} 个可用")
+    
+    # 显示可用节点信息
+    if ok_nodes:
+        log.info("可用节点列表:")
+        for i, node_line in enumerate(ok_nodes, 1):
+            node = parse_node(node_line)
+            if node:
+                log.info(f"  {i}. {node['server']}:{node['port']} ({node['type']})")
+
+# ==========================
+# 命令行参数支持
+# ==========================
 
 if __name__ == "__main__":
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Xray 节点批量测试工具')
+    parser.add_argument('-c', '--concurrent', type=int, default=CONCURRENT_TESTS, 
+                       help=f'并发测试数量 (默认: {CONCURRENT_TESTS})')
+    parser.add_argument('-t', '--timeout', type=int, default=HTTP_TIMEOUT,
+                       help=f'HTTP 测试超时时间 (默认: {HTTP_TIMEOUT})')
+    parser.add_argument('-f', '--file', default='sub.txt',
+                       help='订阅文件路径 (默认: sub.txt)')
+    
+    args = parser.parse_args()
+    
+    # 更新配置
+    CONCURRENT_TESTS = args.concurrent
+    HTTP_TIMEOUT = args.timeout
+    
+    if args.file != 'sub.txt':
+        # 如果指定了不同的文件，复制到 sub.txt
+        if os.path.exists(args.file):
+            shutil.copy(args.file, 'sub.txt')
+            log.info(f"使用订阅文件: {args.file}")
+    
+    log.info(f"并发测试数: {CONCURRENT_TESTS}, HTTP超时: {HTTP_TIMEOUT}秒")
+    
     main()
