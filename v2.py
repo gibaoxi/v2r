@@ -22,7 +22,7 @@ XRAY_BIN = "./xray/xray"
 CONFIG_DIR = "./temp_configs"
 SOCKS_PORT_START = 10808
 
-HTTP_TEST_URLS = ["https://www.google.com/generate_204", "https://cloudflare.com"]
+HTTP_TEST_URLS = ["https://cloudflare.com"]
 DOWNLOAD_URL = "https://speed.cloudflare.com/__down?bytes=1048576"
 
 # 创建临时配置目录
