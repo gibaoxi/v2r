@@ -200,6 +200,173 @@ class XrayNodeTester:
         except Exception:
             return False
     
+    def _create_vless_config(self, node_config, config_path):
+        """创建VLESS配置"""
+        try:
+            parsed = urlparse(node_config)
+            hostname = parsed.hostname
+            port = parsed.port or 443
+            user_id = parsed.username
+            path = parsed.path or ""
+            query_params = parsed.query
+            
+            config = {
+                "inbounds": [{
+                    "port": 1080,
+                    "listen": "127.0.0.1",
+                    "protocol": "socks",
+                    "settings": {
+                        "auth": "noauth",
+                        "udp": True
+                    }
+                }],
+                "outbounds": [{
+                    "protocol": "vless",
+                    "settings": {
+                        "vnext": [{
+                            "address": hostname,
+                            "port": port,
+                            "users": [{
+                                "id": user_id,
+                                "encryption": "none"
+                            }]
+                        }]
+                    },
+                    "streamSettings": {
+                        "network": "tcp",
+                        "security": "tls"
+                    }
+                }]
+            }
+            
+            with open(config_path, 'w') as f:
+                json.dump(config, f, indent=2)
+            return True
+        except Exception:
+            return False
+    
+    def _create_trojan_config(self, node_config, config_path):
+        """创建Trojan配置"""
+        try:
+            parsed = urlparse(node_config)
+            hostname = parsed.hostname
+            port = parsed.port or 443
+            password = parsed.username
+            
+            config = {
+                "inbounds": [{
+                    "port": 1080,
+                    "listen": "127.0.0.1",
+                    "protocol": "socks",
+                    "settings": {
+                        "auth": "noauth",
+                        "udp": True
+                    }
+                }],
+                "outbounds": [{
+                    "protocol": "trojan",
+                    "settings": {
+                        "servers": [{
+                            "address": hostname,
+                            "port": port,
+                            "password": password
+                        }]
+                    },
+                    "streamSettings": {
+                        "network": "tcp",
+                        "security": "tls"
+                    }
+                }]
+            }
+            
+            with open(config_path, 'w') as f:
+                json.dump(config, f, indent=2)
+            return True
+        except Exception:
+            return False
+    
+    def _create_ss_config(self, node_config, config_path):
+        """创建Shadowsocks配置"""
+        try:
+            # 解析SS链接格式: ss://method:password@host:port
+            if node_config.startswith('ss://'):
+                # 移除ss://前缀
+                ss_str = node_config[5:]
+                
+                # 处理base64编码的情况
+                if '#' in ss_str:
+                    ss_str = ss_str.split('#')[0]
+                
+                # 如果是base64编码，解码
+                if '@' not in ss_str and ':' in ss_str:
+                    try:
+                        padding = 4 - len(ss_str) % 4
+                        if padding != 4:
+                            ss_str += '=' * padding
+                        decoded = base64.b64decode(ss_str).decode('utf-8')
+                        # decoded格式: method:password@host:port
+                        if '@' in decoded:
+                            method_password, server = decoded.split('@', 1)
+                            if ':' in method_password:
+                                method, password = method_password.split(':', 1)
+                            else:
+                                method, password = "aes-256-gcm", method_password
+                            
+                            if ':' in server:
+                                host, port = server.split(':', 1)
+                            else:
+                                host, port = server, "8388"
+                        else:
+                            return False
+                    except:
+                        return False
+                else:
+                    # 直接解析
+                    if '@' in ss_str:
+                        method_password, server = ss_str.split('@', 1)
+                        if ':' in method_password:
+                            method, password = method_password.split(':', 1)
+                        else:
+                            method, password = "aes-256-gcm", method_password
+                        
+                        if ':' in server:
+                            host, port = server.split(':', 1)
+                        else:
+                            host, port = server, "8388"
+                    else:
+                        return False
+                
+                config = {
+                    "inbounds": [{
+                        "port": 1080,
+                        "listen": "127.0.0.1",
+                        "protocol": "socks",
+                        "settings": {
+                            "auth": "noauth",
+                            "udp": True
+                        }
+                    }],
+                    "outbounds": [{
+                        "protocol": "shadowsocks",
+                        "settings": {
+                            "servers": [{
+                                "address": host,
+                                "port": int(port),
+                                "method": method,
+                                "password": password
+                            }]
+                        }
+                    }]
+                }
+                
+                with open(config_path, 'w') as f:
+                    json.dump(config, f, indent=2)
+                return True
+            
+            return False
+        except Exception:
+            return False
+    
     def test_node_with_xray(self, node_config, config_path):
         """使用Xray测试节点"""
         try:
