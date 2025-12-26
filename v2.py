@@ -1,581 +1,635 @@
 #!/usr/bin/env python3
-import os
-import sys
+import socket
 import time
 import json
-import requests
 import subprocess
-import psutil
+import requests
+from urllib.parse import urlparse, parse_qs
 import base64
-from urllib.parse import urlparse
-import warnings
-from urllib3.exceptions import InsecureRequestWarning
+import os
+import concurrent.futures
+import threading
+from multiprocessing import Process, Queue, Manager
+import tempfile
+import shutil
 
-warnings.filterwarnings('ignore', category=InsecureRequestWarning)
+# ========== 配置 ==========
+TCP_TEST = True
+HTTP_TEST = True
+DOWNLOAD_TEST = True
 
-class GitHubV2RayTester:
-    def __init__(self):
-        self.v2ray_path = "./v2ray/v2ray"
-        self.config_path = "./v2ray/config.json"
-        self.local_port = 10808
-        self.api_port = 10085
-        self.v2ray_process = None
-        
-        # 测试网站
-        self.test_urls = [
-            "https://ip.sb"
-        ]
-        
-        # 速度测试文件
-        self.speedtest_url = "https://speed.cloudflare.com/__down?bytes=1000000"  # 500KB
-        
-    def setup_v2ray(self):
-        """设置V2Ray环境"""
-        if not os.path.exists(self.v2ray_path):
-            print("❌ V2Ray未找到，请检查下载步骤")
-            return False
-        return True
-    
-    def parse_node_config(self, config):
-        """解析节点配置"""
+# 批量测试控制
+BATCH_SIZE = 5  # 同时测试的最大节点数（TCP/HTTP测试）
+SERIAL_DOWNLOAD = True  # 串行下载测试（避免带宽竞争）
+
+XRAY_BIN = "./xray/xray"
+CONFIG_DIR = "./temp_configs"
+SOCKS_PORT_START = 10808
+
+HTTP_TEST_URLS = ["https://www.google.com/generate_204", "https://cloudflare.com"]
+DOWNLOAD_URL = "https://speed.cloudflare.com/__down?bytes=1048576"
+
+# 创建临时配置目录
+os.makedirs(CONFIG_DIR, exist_ok=True)
+
+# ========== 节点解析函数 ==========
+def parse_node(line):
+    if line.startswith("vless://"):
+        u = urlparse(line)
+        q = parse_qs(u.query)
+        return {
+            "type": "vless",
+            "server": u.hostname,
+            "port": u.port or 443,
+            "uuid": u.username,
+            "network": q.get("type", ["tcp"])[0],
+            "security": q.get("security", [""])[0],
+            "sni": q.get("sni", [u.hostname])[0],
+            "host": q.get("host", [u.hostname])[0],
+            "path": q.get("path", [""])[0],
+            "publicKey": q.get("pbk", [""])[0],
+            "shortId": q.get("sid", [""])[0],
+        }
+
+    if line.startswith("trojan://"):
+        u = urlparse(line)
+        return {
+            "type": "trojan",
+            "server": u.hostname,
+            "port": u.port or 443,
+            "password": u.username,
+        }
+
+    if line.startswith("vmess://"):
         try:
-            if config.startswith('vmess://'):
-                return self.parse_vmess(config)
-            elif config.startswith('vless://'):
-                return self.parse_vless(config)
-            elif config.startswith('trojan://'):
-                return self.parse_trojan(config)
-            elif config.startswith('ss://'):
-                return self.parse_ss(config)
-            else:
-                print(f"❌ 不支持的协议: {config[:50]}...")
-                return None
-        except Exception as e:
-            print(f"❌ 解析配置失败: {e}")
+            data = base64.b64decode(line[8:] + "==").decode()
+            j = json.loads(data)
+            return {
+                "type": "vmess",
+                "server": j["add"],
+                "port": int(j["port"]),
+                "uuid": j["id"],
+                "network": j.get("net", "tcp"),
+                "host": j.get("host", ""),
+                "path": j.get("path", ""),
+                "tls": j.get("tls", "")
+            }
+        except:
             return None
-    
-    def parse_vmess(self, config):
-        """解析VMess配置"""
-        encoded = config[8:]
-        padding = 4 - len(encoded) % 4
-        if padding != 4:
-            encoded += '=' * padding
-        
-        decoded = base64.b64decode(encoded).decode('utf-8')
-        vmess = json.loads(decoded)
-        
-        v2ray_config = {
-            "inbounds": [
-                {
-                    "port": self.local_port,
-                    "listen": "127.0.0.1",
-                    "protocol": "socks",
-                    "settings": {
-                        "udp": True,
-                        "auth": "noauth"
-                    }
-                }
-            ],
-            "outbounds": [
-                {
-                    "protocol": "vmess",
-                    "settings": {
-                        "vnext": [
-                            {
-                                "address": vmess.get("add"),
-                                "port": int(vmess.get("port", 443)),
-                                "users": [
-                                    {
-                                        "id": vmess.get("id"),
-                                        "alterId": int(vmess.get("aid", 0)),
-                                        "security": vmess.get("scy", "auto")
-                                    }
-                                ]
-                            }
-                        ]
-                    },
-                    "streamSettings": {
-                        "network": vmess.get("net", "tcp"),
-                        "security": vmess.get("tls", ""),
-                        "tlsSettings": {
-                            "serverName": vmess.get("host", vmess.get("add"))
-                        } if vmess.get("tls") else {},
-                        "wsSettings": {
-                            "path": vmess.get("path", ""),
-                            "headers": {
-                                "Host": vmess.get("host", "")
-                            }
-                        } if vmess.get("net") == "ws" else {}
-                    }
-                },
-                {
-                    "protocol": "freedom",
-                    "tag": "direct"
-                }
-            ],
-            "routing": {
-                "domainStrategy": "IPIfNonMatch",
-                "rules": [
-                    {
-                        "type": "field",
-                        "ip": ["geoip:private"],
-                        "outboundTag": "direct"
-                    }
-                ]
-            }
-        }
-        
-        return v2ray_config
-    
-    def parse_vless(self, config):
-        """解析VLESS配置"""
-        parsed = urlparse(config)
-        user_id = parsed.username
-        server = parsed.hostname
-        port = parsed.port or 443
-        
-        params = {}
-        for param in parsed.query.split('&'):
-            if '=' in param:
-                key, value = param.split('=', 1)
-                params[key] = value
-        
-        v2ray_config = {
-            "inbounds": [
-                {
-                    "port": self.local_port,
-                    "listen": "127.0.0.1",
-                    "protocol": "socks",
-                    "settings": {
-                        "udp": True,
-                        "auth": "noauth"
-                    }
-                }
-            ],
-            "outbounds": [
-                {
-                    "protocol": "vless",
-                    "settings": {
-                        "vnext": [
-                            {
-                                "address": server,
-                                "port": port,
-                                "users": [
-                                    {
-                                        "id": user_id,
-                                        "encryption": "none",
-                                        "flow": params.get('flow', '')
-                                    }
-                                ]
-                            }
-                        ]
-                    },
-                    "streamSettings": {
-                        "network": params.get('type', 'tcp'),
-                        "security": params.get('security', ''),
-                        "tlsSettings": {
-                            "serverName": params.get('sni', server)
-                        } if params.get('security') == 'tls' else {},
-                        "wsSettings": {
-                            "path": params.get('path', ''),
-                            "headers": {
-                                "Host": params.get('host', server)
-                            }
-                        } if params.get('type') == 'ws' else {}
-                    }
-                },
-                {
-                    "protocol": "freedom",
-                    "tag": "direct"
-                }
-            ],
-            "routing": {
-                "domainStrategy": "IPIfNonMatch",
-                "rules": [
-                    {
-                        "type": "field",
-                        "ip": ["geoip:private"],
-                        "outboundTag": "direct"
-                    }
-                ]
-            }
-        }
-        
-        return v2ray_config
-    
-    def parse_trojan(self, config):
-        """解析Trojan配置"""
-        parsed = urlparse(config)
-        password = parsed.username
-        server = parsed.hostname
-        port = parsed.port or 443
-        
-        v2ray_config = {
-            "inbounds": [
-                {
-                    "port": self.local_port,
-                    "listen": "127.0.0.1",
-                    "protocol": "socks",
-                    "settings": {
-                        "udp": True,
-                        "auth": "noauth"
-                    }
-                }
-            ],
-            "outbounds": [
-                {
-                    "protocol": "trojan",
-                    "settings": {
-                        "servers": [
-                            {
-                                "address": server,
-                                "port": port,
-                                "password": password
-                            }
-                        ]
-                    },
-                    "streamSettings": {
-                        "security": "tls",
-                        "tlsSettings": {
-                            "serverName": server
-                        }
-                    }
-                },
-                {
-                    "protocol": "freedom",
-                    "tag": "direct"
-                }
-            ],
-            "routing": {
-                "domainStrategy": "IPIfNonMatch",
-                "rules": [
-                    {
-                        "type": "field",
-                        "ip": ["geoip:private"],
-                        "outboundTag": "direct"
-                    }
-                ]
-            }
-        }
-        
-        return v2ray_config
-    
-    def parse_ss(self, config):
-        """解析Shadowsocks配置"""
-        if '@' in config:
-            method_password = config[5:].split('@')[0]
-            server_port = config.split('@')[1].split('#')[0]
+
+    if line.startswith("ss://"):
+        # 移除#号及后面的注释部分
+        if '#' in line:
+            line = line.split('#')[0]
             
-            if ':' in method_password and ':' in server_port:
-                method, password_encoded = method_password.split(':', 1)
-                server, port = server_port.split(':', 1)
-                
-                # Base64解码
-                padding = 4 - len(password_encoded) % 4
-                if padding != 4:
-                    password_encoded += '=' * padding
-                password = base64.b64decode(password_encoded).decode('utf-8')
-                
-                v2ray_config = {
-                    "inbounds": [
-                        {
-                            "port": self.local_port,
-                            "listen": "127.0.0.1",
-                            "protocol": "socks",
-                            "settings": {
-                                "udp": True,
-                                "auth": "noauth"
-                            }
-                        }
-                    ],
-                    "outbounds": [
-                        {
-                            "protocol": "shadowsocks",
-                            "settings": {
-                                "servers": [
-                                    {
-                                        "address": server,
-                                        "port": int(port),
-                                        "method": method,
-                                        "password": password
-                                    }
-                                ]
-                            }
-                        },
-                        {
-                            "protocol": "freedom",
-                            "tag": "direct"
-                        }
-                    ],
-                    "routing": {
-                        "domainStrategy": "IPIfNonMatch",
-                        "rules": [
-                            {
-                                "type": "field",
-                                "ip": ["geoip:private"],
-                                "outboundTag": "direct"
-                            }
-                        ]
-                    }
-                }
-                
-                return v2ray_config
-        
-        return None
-    
-    def start_v2ray(self, config):
-        """启动V2Ray进程"""
-        try:
-            # 保存配置
-            with open(self.config_path, 'w') as f:
-                json.dump(config, f, indent=2)
-            
-            # 启动V2Ray
-            self.v2ray_process = subprocess.Popen(
-                [self.v2ray_path, "run", "-config", self.config_path],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
-            )
-            
-            # 等待V2Ray启动
-            time.sleep(3)
-            
-            # 检查进程是否运行
-            if self.v2ray_process.poll() is not None:
-                stdout, stderr = self.v2ray_process.communicate()
-                print(f"❌ V2Ray启动失败: {stderr.decode()}")
-                return False
-            
-            print("✅ V2Ray启动成功")
-            return True
-            
-        except Exception as e:
-            print(f"❌ 启动V2Ray失败: {e}")
-            return False
-    
-    def stop_v2ray(self):
-        """停止V2Ray进程"""
-        if self.v2ray_process:
+        raw = line[5:]
+        if "@" not in raw:
             try:
-                self.v2ray_process.terminate()
-                self.v2ray_process.wait(timeout=5)
-                print("✅ V2Ray已停止")
+                # 尝试Base64解码
+                raw = base64.b64decode(raw + "==").decode('utf-8')
             except:
-                self.v2ray_process.kill()
-            self.v2ray_process = None
-    
-    def test_connectivity(self, proxy_url):
-        """测试连接性"""
-        proxies = {
-            'http': proxy_url,
-            'https': proxy_url
-        }
-        
-        success_count = 0
-        total_latency = 0
-        max_retries = 2
-        
-        for test_url in self.test_urls:
-            for attempt in range(max_retries):
                 try:
-                    start_time = time.time()
-                    response = requests.get(
-                        test_url,
-                        proxies=proxies,
-                        timeout=10,
-                        verify=False
-                    )
-                    latency = (time.time() - start_time) * 1000
-                    
-                    if response.status_code == 200:
-                        success_count += 1
-                        total_latency += latency
-                        print(f"  ✅ {test_url} - {latency:.1f}ms")
-                        break
-                    else:
-                        print(f"  ❌ {test_url} - HTTP {response.status_code}")
-                        
-                except Exception as e:
-                    if attempt == max_retries - 1:
-                        print(f"  ❌ {test_url} - {str(e)}")
-                    time.sleep(1)
+                    # 如果UTF-8解码失败，尝试latin-1
+                    raw = base64.b64decode(raw + "==").decode('latin-1')
+                except:
+                    return None
         
-        avg_latency = total_latency / success_count if success_count > 0 else 0
-        success_rate = (success_count / len(self.test_urls)) * 100
-        
-        return success_rate, avg_latency
+        try:
+            if "@" not in raw:
+                return None
+                
+            method_pass, server = raw.split("@", 1)
+            if ":" not in method_pass:
+                return None
+                
+            method, password = method_pass.split(":", 1)
+            
+            # 处理服务器部分（可能有多个冒号的情况）
+            # 移除可能存在的路径部分
+            if "/" in server:
+                server = server.split("/")[0]
+                
+            server_parts = server.split(":")
+            if len(server_parts) < 2:
+                return None
+                
+            host = server_parts[0]
+            port = int(server_parts[1])
+            
+            return {
+                "type": "ss",
+                "server": host,
+                "port": port,
+                "method": method,
+                "password": password
+            }
+        except (ValueError, IndexError, UnicodeDecodeError):
+            return None
+
+    if line.startswith("hy2://"):
+        try:
+            # 简单解析hy2链接格式：hy2://uuid@server:port
+            parts = line[6:].split('@')  # 移除"hy2://"
+            if len(parts) == 2:
+                uuid = parts[0]
+                server_port = parts[1].split('#')[0]  # 移除注释
+                if ':' in server_port:
+                    server, port = server_port.split(':', 1)
+                    return {
+                        "type": "hy2",
+                        "server": server,
+                        "port": int(port),
+                        "uuid": uuid
+                    }
+        except:
+            pass
+            
+        return None
+
+    return None
+
+# ========== 基础测试函数 ==========
+def tcp_test(host, port, timeout=5):
+    try:
+        start = time.time()
+        s = socket.create_connection((host, port), timeout=timeout)
+        s.close()
+        return True, int((time.time() - start) * 1000)
+    except:
+        return False, -1
+
+def http_test(socks_port):
+    proxies = {
+        "http": f"socks5h://127.0.0.1:{socks_port}",
+        "https": f"socks5h://127.0.0.1:{socks_port}"
+    }
     
-    def test_speed(self, proxy_url):
-        """测试下载速度"""
+    best_http_delay = -1
+    for u in HTTP_TEST_URLS:
         try:
             start_time = time.time()
-            response = requests.get(
-                self.speedtest_url,
-                proxies={'http': proxy_url, 'https': proxy_url},
-                timeout=15,
-                stream=True,
-                verify=False
-            )
+            r = requests.get(u, proxies=proxies, timeout=8)
+            http_delay = int((time.time() - start_time) * 1000)
             
-            total_size = 0
-            for chunk in response.iter_content(chunk_size=8192):
-                total_size += len(chunk)
-                if time.time() - start_time > 10:  # 最多下载10秒
-                    break
-                if total_size > 1000000:  # 下载500KB
-                    break
-            
-            download_time = time.time() - start_time
-            
-            if download_time > 0 and total_size > 0:
-                speed_mbps = (total_size * 8) / (download_time * 1024 * 1024)
-                return True, speed_mbps, total_size
-            else:
-                return False, 0, 0
-                
-        except Exception as e:
-            return False, 0, 0
+            if r.status_code in (200, 204):
+                if best_http_delay == -1 or http_delay < best_http_delay:
+                    best_http_delay = http_delay
+                return True, best_http_delay
+        except:
+            pass
     
-    def test_single_node(self, node_config, index):
-        """测试单个节点"""
-        print(f"\n🔍 测试节点 {index}: {node_config[:80]}...")
+    return False, -1
+
+def speed_test(socks_port):
+    proxies = {
+        "http": f"socks5h://127.0.0.1:{socks_port}",
+        "https": f"socks5h://127.0.0.1:{socks_port}"
+    }
+    try:
+        start = time.time()
+        r = requests.get(DOWNLOAD_URL, proxies=proxies, stream=True, timeout=15)
+        size = 0
         
-        # 解析配置
-        v2ray_config = self.parse_node_config(node_config)
-        if not v2ray_config:
-            return None
+        download_start = time.time()
         
-        # 启动V2Ray
-        if not self.start_v2ray(v2ray_config):
-            return None
+        for c in r.iter_content(8192):
+            size += len(c)
+            if size >= 1048576:
+                break
         
-        proxy_url = f"socks5://127.0.0.1:{self.local_port}"
-        result = {
-            'config': node_config,
-            'index': index,
-            'success': False,
-            'connectivity_rate': 0,
-            'latency': 0,
-            'speed_mbps': 0,
-            'error': ''
+        download_time = time.time() - download_start
+        speed = round((size * 8) / (download_time * 1024 * 1024), 2) if download_time > 0 else 0
+        
+        return speed, round(download_time, 2)
+    except:
+        return 0, -1
+
+# ========== 配置生成函数 ==========
+def gen_config(node, socks_port):
+    outbound = {}
+
+    if node["type"] == "vless":
+        outbound = {
+            "protocol": "vless",
+            "settings": {
+                "vnext": [{
+                    "address": node["server"],
+                    "port": node["port"],
+                    "users": [{"id": node["uuid"], "encryption": "none"}]
+                }]
+            },
+            "streamSettings": {
+                "network": node["network"],
+                "security": node["security"]
+            }
         }
         
+        if node["security"] == "tls":
+            outbound["streamSettings"]["tlsSettings"] = {
+                "serverName": node.get("sni", node["server"])
+            }
+        elif node["security"] == "reality":
+            outbound["streamSettings"]["realitySettings"] = {
+                "show": False,
+                "fingerprint": "chrome",
+                "serverName": node.get("sni", node["server"]),
+                "publicKey": node.get("publicKey", ""),
+                "shortId": node.get("shortId", ""),
+                "spiderX": node.get("spiderX", "/")
+            }
+        
+        if node["network"] == "ws":
+            outbound["streamSettings"]["wsSettings"] = {
+                "path": node.get("path", ""),
+                "headers": {"Host": node.get("host", node["server"])}
+            }
+
+    elif node["type"] == "trojan":
+        outbound = {
+            "protocol": "trojan",
+            "settings": {
+                "servers": [{
+                    "address": node["server"],
+                    "port": node["port"],
+                    "password": node["password"]
+                }]
+            }
+        }
+
+    elif node["type"] == "vmess":
+        outbound = {
+            "protocol": "vmess",
+            "settings": {
+                "vnext": [{
+                    "address": node["server"],
+                    "port": node["port"],
+                    "users": [{"id": node["uuid"], "alterId": 0}]
+                }]
+            }
+        }
+
+    elif node["type"] == "ss":
+        outbound = {
+            "protocol": "shadowsocks",
+            "settings": {
+                "servers": [{
+                    "address": node["server"],
+                    "port": node["port"],
+                    "method": node["method"],
+                    "password": node["password"]
+                }]
+            }
+        }
+
+    elif node["type"] == "hy2":
+        # Xray不支持hy2协议，使用freedom作为备选
+        outbound = {
+            "protocol": "freedom",
+            "settings": {}
+        }
+
+    return {
+        "log": {"loglevel": "warning"},
+        "inbounds": [{
+            "port": socks_port,
+            "listen": "127.0.0.1",
+            "protocol": "socks",
+            "settings": {"udp": True}
+        }],
+        "outbounds": [outbound]
+    }
+
+# ========== 批量TCP测试 ==========
+def batch_tcp_test(nodes):
+    """批量测试TCP连通性"""
+    print(f"🔍 开始批量TCP测试 ({len(nodes)}个节点)...")
+    
+    def test_single_tcp(node_data):
+        line, node, node_id = node_data
         try:
-            # 测试连接性
-            connectivity_rate, avg_latency = self.test_connectivity(proxy_url)
-            result['connectivity_rate'] = connectivity_rate
-            result['latency'] = avg_latency
-            
-            # 测试速度
-            speed_success, speed_mbps, downloaded_size = self.test_speed(proxy_url)
-            result['speed_mbps'] = speed_mbps
-            
-            # 判断是否成功
-            if connectivity_rate >= 60 and speed_mbps > 0.1:
-                result['success'] = True
-                print(f"✅ 节点测试成功 - 连通率: {connectivity_rate:.1f}%, 延迟: {avg_latency:.1f}ms, 速度: {speed_mbps:.2f} Mbps")
-            else:
-                print(f"❌ 节点测试失败 - 连通率: {connectivity_rate:.1f}%, 速度: {speed_mbps:.2f} Mbps")
-                
+            ok, tcp_ms = tcp_test(node["server"], node["port"])
+            return {
+                "id": node_id,
+                "line": line,
+                "node": node,
+                "tcp_ok": ok,
+                "tcp_ms": tcp_ms
+            }
         except Exception as e:
-            result['error'] = str(e)
-            print(f"❌ 测试过程中出错: {e}")
-        
-        finally:
-            self.stop_v2ray()
-            time.sleep(1)  # 等待端口释放
-        
-        return result
+            return {
+                "id": node_id,
+                "line": line,
+                "node": node,
+                "tcp_ok": False,
+                "tcp_ms": -1,
+                "error": str(e)
+            }
     
-    def read_nodes(self, filename="ping.txt"):
-        """读取节点列表"""
-        if not os.path.exists(filename):
-            print(f"❌ 找不到节点文件: {filename}")
-            return []
-        
-        nodes = []
-        with open(filename, 'r', encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith('#'):
-                    nodes.append(line)
-        
-        print(f"📋 读取到 {len(nodes)} 个节点")
-        return nodes
-    
-    def run_tests(self):
-        """运行所有测试"""
-        if not self.setup_v2ray():
-            return []
-        
-        nodes = self.read_nodes()
-        if not nodes:
-            return []
+    # 使用线程池进行批量测试
+    with concurrent.futures.ThreadPoolExecutor(max_workers=BATCH_SIZE) as executor:
+        futures = {executor.submit(test_single_tcp, (line, node, i)): i 
+                   for i, (line, node) in enumerate(nodes)}
         
         results = []
-        valid_nodes = []
-        
-        for i, node_config in enumerate(nodes, 1):
-            result = self.test_single_node(node_config, i)
-            if result:
-                results.append(result)
-                if result['success']:
-                    valid_nodes.append(node_config)
+        for future in concurrent.futures.as_completed(futures):
+            result = future.result()
+            results.append(result)
             
-            # GitHub Actions限制，避免超时
-            if i % 10 == 0:
-                print(f"⏳ 已完成 {i}/{len(nodes)} 个节点测试")
-        
-        # 按速度排序
-        valid_results = [r for r in results if r['success']]
-        valid_results.sort(key=lambda x: x['speed_mbps'], reverse=True)
-        
-        # 保存结果
-        self.save_results(valid_results, valid_nodes)
-        
-        return valid_results
+            if result["tcp_ok"]:
+                print(f"✅ TCP成功: {result['node']['server']}:{result['node']['port']}, 延迟: {result['tcp_ms']}ms")
+            else:
+                print(f"❌ TCP失败: {result['node']['server']}:{result['node']['port']}")
     
-    def save_results(self, results, valid_nodes):
-        """保存测试结果"""
-        # 保存有效的节点配置
-        with open('ping.txt', 'w', encoding='utf-8') as f:
-            for node in valid_nodes:
-                f.write(node + '\n')
-        
-        # 保存详细结果
-        result_data = {
-            'timestamp': time.time(),
-            'total_tested': len(results),
-            'valid_nodes': len(valid_nodes),
-            'results': results
-        }
-        
-        with open('results.json', 'w', encoding='utf-8') as f:
-            json.dump(result_data, f, indent=2, ensure_ascii=False)
-        
-        print(f"\n📊 测试完成:")
-        print(f"总测试节点: {len(results)}")
-        print(f"有效节点: {len(valid_nodes)}")
-        
-        if valid_nodes:
-            print(f"\n🏆 速度排名前10:")
-            for i, result in enumerate(results[:10], 1):
-                print(f"{i:2d}. 速度: {result['speed_mbps']:.2f} Mbps, 延迟: {result['latency']:.1f}ms")
+    # 按原始顺序排序
+    results.sort(key=lambda x: x["id"])
+    return results
 
-def main():
-    """主函数"""
-    tester = GitHubV2RayTester()
+# ========== 批量HTTP测试 ==========
+def batch_http_test(tcp_results):
+    """批量测试HTTP可访问性"""
+    http_nodes = [(r["line"], r["node"], r["id"]) for r in tcp_results if r["tcp_ok"]]
     
-    try:
-        start_time = time.time()
-        results = tester.run_tests()
-        end_time = time.time()
+    if not http_nodes:
+        print("⚠️ 没有通过TCP测试的节点，跳过HTTP测试")
+        return []
+    
+    print(f"🌐 开始批量HTTP测试 ({len(http_nodes)}个节点)...")
+    
+    def test_single_http(node_data):
+        line, node, node_id, socks_port, config_path = node_data
+        try:
+            # 生成配置
+            config = gen_config(node, socks_port)
+            with open(config_path, "w") as f:
+                json.dump(config, f, indent=2)
+            
+            # 启动Xray
+            p = subprocess.Popen([XRAY_BIN, "run", "-config", config_path], 
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            time.sleep(3)
+            
+            # HTTP测试
+            http_ok, http_ms = http_test(socks_port)
+            
+            # 终止进程
+            p.terminate()
+            p.wait()
+            
+            return {
+                "id": node_id,
+                "line": line,
+                "node": node,
+                "socks_port": socks_port,
+                "config_path": config_path,
+                "http_ok": http_ok,
+                "http_ms": http_ms
+            }
+        except Exception as e:
+            return {
+                "id": node_id,
+                "line": line,
+                "node": node,
+                "socks_port": socks_port,
+                "config_path": config_path,
+                "http_ok": False,
+                "http_ms": -1,
+                "error": str(e)
+            }
+    
+    # 为每个节点分配端口和配置文件
+    http_tasks = []
+    for i, (line, node, node_id) in enumerate(http_nodes):
+        socks_port = SOCKS_PORT_START + i
+        config_path = os.path.join(CONFIG_DIR, f"config_{node_id}.json")
+        http_tasks.append((line, node, node_id, socks_port, config_path))
+    
+    # 分批进行HTTP测试
+    results = []
+    for i in range(0, len(http_tasks), BATCH_SIZE):
+        batch = http_tasks[i:i+BATCH_SIZE]
+        print(f"🔄 测试批次 {i//BATCH_SIZE + 1}/{(len(http_tasks)-1)//BATCH_SIZE + 1} ({len(batch)}个节点)")
         
-        print(f"\n⏱️ 总耗时: {end_time - start_time:.2f}秒")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(batch)) as executor:
+            futures = {executor.submit(test_single_http, task): task for task in batch}
+            
+            for future in concurrent.futures.as_completed(futures):
+                result = future.result()
+                results.append(result)
+                
+                if result["http_ok"]:
+                    print(f"✅ HTTP成功: {result['node']['server']}, 延迟: {result['http_ms']}ms")
+                else:
+                    print(f"❌ HTTP失败: {result['node']['server']}")
+    
+    # 按原始顺序排序
+    results.sort(key=lambda x: x["id"])
+    return results
+
+# ========== 串行下载测试 ==========
+def serial_download_test(http_results):
+    """串行测试下载速度（避免带宽竞争）"""
+    download_nodes = [(r["line"], r["node"], r["id"], r["socks_port"], r["config_path"]) 
+                      for r in http_results if r["http_ok"]]
+    
+    if not download_nodes:
+        print("⚠️ 没有通过HTTP测试的节点，跳过下载测试")
+        return []
+    
+    print(f"📥 开始串行下载测试 ({len(download_nodes)}个节点)...")
+    
+    results = []
+    for i, (line, node, node_id, socks_port, config_path) in enumerate(download_nodes):
+        print(f"🔄 下载测试进度: {i+1}/{len(download_nodes)} - {node['server']}")
         
-    except Exception as e:
-        print(f"❌ 测试出错: {e}")
-        sys.exit(1)
+        try:
+            # 生成配置
+            config = gen_config(node, socks_port)
+            with open(config_path, "w") as f:
+                json.dump(config, f, indent=2)
+            
+            # 启动Xray
+            p = subprocess.Popen([XRAY_BIN, "run", "-config", config_path], 
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            time.sleep(3)
+            
+            # 下载测试
+            speed, download_time = speed_test(socks_port)
+            
+            # 终止进程
+            p.terminate()
+            p.wait()
+            
+            if download_time > 0:
+                results.append({
+                    "id": node_id,
+                    "line": line,
+                    "node": node,
+                    "speed": speed,
+                    "download_time": download_time
+                })
+                print(f"✅ 下载成功: {node['server']}, 速度: {speed}Mbps, 时间: {download_time}s")
+            else:
+                print(f"❌ 下载失败: {node['server']}")
+                
+        except Exception as e:
+            print(f"💥 下载测试异常: {node['server']} - {str(e)}")
+    
+    return results
+
+# ========== 主流程 ==========
+def main():
+    start_time = time.time()
+    
+    print("🚀 开始智能批量节点测试")
+    print(f"📊 配置: TCP/HTTP批量数={BATCH_SIZE}, 下载串行测试={SERIAL_DOWNLOAD}")
+    print("=" * 60)
+    
+    # 读取并解析所有节点
+    nodes = []
+    with open("sub.txt", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+                
+            node = parse_node(line)
+            if node:
+                nodes.append((line, node))
+                print(f"✅ 解析成功: {node['server']}:{node['port']}")
+            else:
+                print(f"❌ 解析失败: {line[:50]}...")
+    
+    if not nodes:
+        print("❌ 没有找到可用的节点")
+        return
+    
+    print(f"\n📋 总共解析 {len(nodes)} 个节点")
+    
+    # 阶段1: 批量TCP测试
+    tcp_results = []
+    if TCP_TEST:
+        tcp_results = batch_tcp_test(nodes)
+        tcp_success = sum(1 for r in tcp_results if r["tcp_ok"])
+        print(f"📊 TCP测试结果: {tcp_success}/{len(nodes)} 成功")
+    else:
+        # 如果跳过TCP测试，将所有节点标记为TCP成功
+        tcp_results = [{"line": line, "node": node, "tcp_ok": True, "tcp_ms": -1, "id": i} 
+                       for i, (line, node) in enumerate(nodes)]
+        print("⏭️  跳过TCP测试")
+    
+    # 阶段2: 批量HTTP测试
+    http_results = []
+    if HTTP_TEST:
+        http_results = batch_http_test(tcp_results)
+        http_success = sum(1 for r in http_results if r["http_ok"])
+        print(f"📊 HTTP测试结果: {http_success}/{len(tcp_results)} 成功")
+    else:
+        # 如果跳过HTTP测试，将TCP成功的节点标记为HTTP成功
+        http_results = [{"line": r["line"], "node": r["node"], "http_ok": True, "http_ms": -1, 
+                        "socks_port": SOCKS_PORT_START + i, "config_path": "", "id": r["id"]} 
+                       for i, r in enumerate(tcp_results) if r["tcp_ok"]]
+        print("⏭️  跳过HTTP测试")
+    
+    # 阶段3: 下载测试
+    final_results = []
+    if DOWNLOAD_TEST:
+        if SERIAL_DOWNLOAD:
+            # 串行下载测试
+            download_results = serial_download_test(http_results)
+        else:
+            # 并行下载测试（不推荐，会互相干扰）
+            print("⚠️ 并行下载测试可能会因带宽竞争导致结果不准确")
+            download_results = serial_download_test(http_results)  # 暂时也用串行
+        
+        final_results = download_results
+        print(f"📊 下载测试结果: {len(download_results)}/{len(http_results)} 成功")
+    else:
+        # 如果跳过下载测试，将HTTP成功的节点标记为下载成功
+        final_results = [{"line": r["line"], "node": r["node"], "speed": 0, "download_time": -1, "id": r["id"]} 
+                        for r in http_results if r["http_ok"]]
+        print("⏭️  跳过下载测试")
+    
+    # 合并所有测试结果
+    all_results = []
+    for r in final_results:
+        # 查找对应的TCP和HTTP结果
+        tcp_info = next((tr for tr in tcp_results if tr["id"] == r["id"]), {})
+        http_info = next((hr for hr in http_results if hr["id"] == r["id"]), {})
+        
+        result = {
+            "line": r["line"],
+            "node": r["node"],
+            "tcp_ms": tcp_info.get("tcp_ms", -1),
+            "http_ms": http_info.get("http_ms", -1),
+            "speed": r.get("speed", 0),
+            "download_time": r.get("download_time", -1)
+        }
+        all_results.append(result)
+    
+    # 排序结果
+    if DOWNLOAD_TEST:
+        # 按下载速度从高到低排序
+        all_results.sort(key=lambda x: (-x["speed"], x["tcp_ms"], x["http_ms"]))
+    elif HTTP_TEST:
+        # 按HTTP延迟从低到高排序
+        all_results.sort(key=lambda x: (x["http_ms"], x["tcp_ms"]))
+    elif TCP_TEST:
+        # 按TCP延迟从低到高排序
+        all_results.sort(key=lambda x: x["tcp_ms"])
+    else:
+        # 保持原顺序
+        pass
+    
+    # 保存结果到ping.txt
+    with open("ping.txt", "w", encoding="utf-8") as f:
+        for r in all_results:
+            f.write(r["line"] + "\n")
+    
+    # 保存详细结果到detailed_results.txt
+    with open("detailed_results.txt", "w", encoding="utf-8") as f:
+        header = "节点链接"
+        if TCP_TEST:
+            header += "\tTCP延时(ms)"
+        if HTTP_TEST:
+            header += "\tHTTP延时(ms)"
+        if DOWNLOAD_TEST:
+            header += "\t速度(Mbps)\t下载1MB时间(s)"
+        f.write(header + "\n")
+        
+        for r in all_results:
+            line = r["line"]
+            if TCP_TEST:
+                line += f"\t{r['tcp_ms']}"
+            if HTTP_TEST:
+                line += f"\t{r['http_ms']}"
+            if DOWNLOAD_TEST:
+                line += f"\t{r['speed']}\t{r['download_time']}"
+            f.write(line + "\n")
+    
+    # 清理临时文件
+    shutil.rmtree(CONFIG_DIR, ignore_errors=True)
+    
+    # 统计信息
+    total_time = time.time() - start_time
+    print("=" * 60)
+    print(f"🎉 测试完成！")
+    print(f"📊 总节点数: {len(nodes)}")
+    print(f"✅ 通过测试: {len(all_results)}")
+    print(f"⏱️  总耗时: {total_time:.1f}秒")
+    print(f"📈 平均每个节点: {total_time/max(1,len(nodes)):.1f}秒")
+    
+    # 显示最佳节点
+    if all_results:
+        best = all_results[0]
+        print(f"🏆 最佳节点: {best['node']['server']}")
+        if TCP_TEST:
+            print(f"   TCP延迟: {best['tcp_ms']}ms")
+        if HTTP_TEST:
+            print(f"   HTTP延迟: {best['http_ms']}ms")
+        if DOWNLOAD_TEST:
+            print(f"   下载速度: {best['speed']}Mbps")
+    
+    print(f"💾 结果已保存到 ping.txt 和 detailed_results.txt")
 
 if __name__ == "__main__":
     main()
