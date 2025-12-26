@@ -27,12 +27,29 @@ class NodeConnectivityTester:
         self.enable_speedtest = enable_speedtest
         self.enable_tls_http_test = enable_tls_http_test
         
-        # 测试说明
+        # 速度测试配置
+        self.speedtest_files = [
+            "https://speed.cloudflare.com/__down?bytes=1000000",  # 1MB
+            "https://proof.ovh.net/files/10Mb.dat",
+        ]
+        
+        # TLS/HTTP测试配置
+        self.tls_test_sites = [
+            "https://www.google.com",
+            "https://www.github.com", 
+            "https://www.cloudflare.com",
+            "https://www.baidu.com",
+        ]
+        
         print("=" * 60)
-        print("节点连通性测试说明:")
-        print("- Ping/TCP测试: 测试本地到节点服务器的连接")
-        print("- 速度/TLS测试: 测试节点代理到目标网站的能力") 
-        print("- 保存条件: 必须同时满足 TCP连接 + 下载测试 + TLS测试 三个条件")
+        print("节点连通性测试")
+        print("=" * 60)
+        print("测试路径说明:")
+        print("1. Ping测试: 本地 → 节点服务器")
+        print("2. TCP测试: 本地 → 节点服务器")
+        print("3. 速度测试: 本地 → 节点代理 → 目标网站")
+        print("4. TLS测试: 本地 → 节点代理 → 目标网站")
+        print("保存条件: 必须同时满足 TCP + 速度 + TLS 三个条件")
         print("=" * 60)
         
     def read_nodes(self):
@@ -91,7 +108,7 @@ class NodeConnectivityTester:
     def test_icmp_ping(self, host):
         """测试本地到节点服务器的ICMP ping"""
         if not self.enable_ping:
-            return False, None, "本地→节点"
+            return False, None
             
         try:
             if os.name == 'nt':
@@ -106,21 +123,21 @@ class NodeConnectivityTester:
                 if 'avg' in output:
                     match = re.search(r'(\d+\.\d+)/(\d+\.\d+)/(\d+\.\d+)', output)
                     if match:
-                        return True, float(match.group(2)), "本地→节点"
+                        return True, float(match.group(2))
                 elif 'Average' in output:
                     match = re.search(r'Average = (\d+)ms', output)
                     if match:
-                        return True, float(match.group(1)), "本地→节点"
+                        return True, float(match.group(1))
             
-            return False, None, "本地→节点"
+            return False, None
             
         except Exception:
-            return False, None, "本地→节点"
+            return False, None
     
     def test_tcp_connect(self, host, port):
         """测试本地到节点服务器的TCP连接"""
         if not self.enable_tcp:
-            return False, None, "本地→节点"
+            return False, None
             
         try:
             start_time = time.time()
@@ -130,28 +147,51 @@ class NodeConnectivityTester:
             latency = (time.time() - start_time) * 1000
             sock.close()
             
-            return result == 0, latency, "本地→节点"
+            return result == 0, latency
         except:
-            return False, None, "本地→节点"
+            return False, None
     
-    def test_proxy_download_speed(self, node_config):
-        """测试通过节点代理的下载速度"""
+    def setup_proxy_for_node(self, node_config):
+        """为节点配置设置代理"""
+        try:
+            # 对于HTTP/HTTPS/SOCKS代理
+            if node_config.startswith('http://') or node_config.startswith('https://'):
+                return {
+                    'http': node_config,
+                    'https': node_config
+                }
+            elif node_config.startswith('socks4://') or node_config.startswith('socks5://'):
+                return {
+                    'http': node_config,
+                    'https': node_config
+                }
+            else:
+                # 对于VMess、VLess等复杂协议，需要本地代理客户端支持
+                # 这里简化处理，返回None表示不支持代理测试
+                return None
+                
+        except Exception:
+            return None
+    
+    def test_download_speed_via_proxy(self, node_config):
+        """通过节点代理测试下载速度"""
         if not self.enable_speedtest:
-            return False, 0, 0, "节点→目标"
+            return False, 0, 0
             
         try:
             # 设置代理
-            proxies = self._setup_proxy(node_config)
+            proxies = self.setup_proxy_for_node(node_config)
             if not proxies:
-                return False, 0, 0, "节点→目标"
+                # 如果不支持代理测试，使用直接连接作为备用
+                return self.test_download_speed_direct()
             
-            test_url = "https://speed.cloudflare.com/__down?bytes=1000000"  # 1MB
+            test_url = self.speedtest_files[0]
+            start_time = time.time()
             
             session = requests.Session()
             session.verify = False
             session.proxies = proxies
             
-            start_time = time.time()
             response = session.get(test_url, timeout=self.speedtest_timeout, stream=True)
             
             total_size = 0
@@ -159,8 +199,11 @@ class NodeConnectivityTester:
             
             for chunk in response.iter_content(chunk_size=chunk_size):
                 total_size += len(chunk)
-                if time.time() - start_time > self.speedtest_timeout:
+                elapsed = time.time() - start_time
+                
+                if elapsed > self.speedtest_timeout:
                     break
+                    
                 if total_size > 500000:  # 下载500KB即可
                     break
             
@@ -168,27 +211,51 @@ class NodeConnectivityTester:
             
             if download_time > 0 and total_size > 0:
                 speed_mbps = (total_size * 8) / (download_time * 1024 * 1024)
-                return True, speed_mbps, speed_mbps/8, "节点→目标"
-            return False, 0, 0, "节点→目标"
-            
+                speed_mbs = total_size / (download_time * 1024 * 1024)
+                return True, speed_mbps, speed_mbs
+            else:
+                return False, 0, 0
+                
         except Exception as e:
-            return False, 0, 0, f"节点→目标: {str(e)[:30]}"
+            # 如果代理测试失败，尝试直接连接
+            return self.test_download_speed_direct()
     
-    def test_proxy_tls_http(self, node_config):
-        """测试通过节点代理的TLS/HTTP连接"""
+    def test_download_speed_direct(self):
+        """直接下载速度测试（备用方案）"""
+        try:
+            test_url = self.speedtest_files[1]  # 使用备用测试文件
+            start_time = time.time()
+            
+            session = requests.Session()
+            session.verify = False
+            response = session.get(test_url, timeout=10, stream=True)
+            
+            total_size = 0
+            for chunk in response.iter_content(chunk_size=8192):
+                total_size += len(chunk)
+                if time.time() - start_time > 10:
+                    break
+                if total_size > 500000:
+                    break
+            
+            download_time = time.time() - start_time
+            if download_time > 0 and total_size > 0:
+                speed_mbps = (total_size * 8) / (download_time * 1024 * 1024)
+                return True, speed_mbps, speed_mbps/8
+            return False, 0, 0
+        except Exception:
+            return False, 0, 0
+    
+    def test_tls_http_via_proxy(self, node_config):
+        """通过节点代理测试TLS/HTTP连接"""
         if not self.enable_tls_http_test:
-            return False, 0, "disabled", "节点→目标"
+            return False, 0, "disabled"
             
         try:
-            proxies = self._setup_proxy(node_config)
+            proxies = self.setup_proxy_for_node(node_config)
             if not proxies:
-                return False, 0, "无代理", "节点→目标"
-            
-            test_sites = [
-                "https://www.google.com",
-                "https://www.github.com",
-                "https://www.cloudflare.com"
-            ]
+                # 如果不支持代理测试，使用直接连接
+                return self.test_tls_http_direct()
             
             session = requests.Session()
             session.verify = False
@@ -197,7 +264,7 @@ class NodeConnectivityTester:
             success_count = 0
             best_latency = float('inf')
             
-            for test_url in test_sites:
+            for test_url in self.tls_test_sites:
                 try:
                     start_time = time.time()
                     response = session.get(test_url, timeout=self.tls_http_timeout)
@@ -213,27 +280,44 @@ class NodeConnectivityTester:
                     continue
             
             if success_count > 0:
-                success_rate = (success_count / len(test_sites)) * 100
-                return True, best_latency, f"成功{success_count}/{len(test_sites)}", "节点→目标"
+                success_rate = (success_count / len(self.tls_test_sites)) * 100
+                return True, best_latency, f"成功{success_count}/{len(self.tls_test_sites)}"
             else:
-                return False, 0, "全部失败", "节点→目标"
+                return False, 0, "全部失败"
                 
-        except Exception as e:
-            return False, 0, f"错误: {str(e)[:30]}", "节点→目标"
+        except Exception:
+            return self.test_tls_http_direct()
     
-    def _setup_proxy(self, node_config):
-        """设置代理配置"""
+    def test_tls_http_direct(self):
+        """直接TLS/HTTP测试（备用方案）"""
         try:
-            # 简化代理设置，实际使用时需要根据协议类型具体实现
-            if node_config.startswith('http://') or node_config.startswith('https://'):
-                return {'http': node_config, 'https': node_config}
-            elif node_config.startswith('socks'):
-                return {'http': node_config, 'https': node_config}
+            session = requests.Session()
+            session.verify = False
+            
+            success_count = 0
+            best_latency = float('inf')
+            
+            for test_url in self.tls_test_sites[:2]:  # 只测试前两个
+                try:
+                    start_time = time.time()
+                    response = session.get(test_url, timeout=5)
+                    latency = (time.time() - start_time) * 1000
+                    
+                    if response.status_code == 200:
+                        success_count += 1
+                        if latency < best_latency:
+                            best_latency = latency
+                    
+                    response.close()
+                except:
+                    continue
+            
+            if success_count > 0:
+                return True, best_latency, f"直接连接{success_count}/2"
             else:
-                # 对于VMess等复杂协议，返回None表示不支持代理测试
-                return None
-        except:
-            return None
+                return False, 0, "直接连接失败"
+        except Exception:
+            return False, 0, "直接连接错误"
     
     def test_single_node(self, node, index):
         """测试单个节点"""
@@ -264,36 +348,40 @@ class NodeConnectivityTester:
         print(f"\n测试节点 {index}: {host}" + (f":{port}" if port else ""))
         
         # 1. 测试本地到节点的Ping
-        ping_success, ping_latency, ping_desc = False, None, ""
+        ping_success, ping_latency = False, None
         if self.enable_ping:
-            ping_success, ping_latency, ping_desc = self.test_icmp_ping(host)
-            status = "✅" if ping_success else "❌"
-            latency_info = f"{ping_latency:.1f}ms" if ping_latency else "失败"
-            print(f"  Ping({ping_desc}): {status} {latency_info}")
+            ping_success, ping_latency = self.test_icmp_ping(host)
+            if ping_success:
+                print(f"  Ping(本地→节点): ✅ {ping_latency:.1f}ms")
+            else:
+                print(f"  Ping(本地→节点): ❌ 失败")
         
         # 2. 测试本地到节点的TCP
-        tcp_success, tcp_latency, tcp_desc = False, None, ""
+        tcp_success, tcp_latency = False, None
         if self.enable_tcp and port:
-            tcp_success, tcp_latency, tcp_desc = self.test_tcp_connect(host, port)
-            status = "✅" if tcp_success else "❌"
-            latency_info = f"{tcp_latency:.1f}ms" if tcp_latency else "失败"
-            print(f"  TCP({tcp_desc}): {status} {latency_info}")
+            tcp_success, tcp_latency = self.test_tcp_connect(host, port)
+            if tcp_success:
+                print(f"  TCP(本地→节点): ✅ {tcp_latency:.1f}ms")
+            else:
+                print(f"  TCP(本地→节点): ❌ 失败")
         
-        # 3. 测试通过节点的下载速度
-        speed_success, speed_mbps, speed_mbs, speed_desc = False, 0, 0, ""
+        # 3. 测试通过节点代理的下载速度
+        speed_success, speed_mbps, speed_mbs = False, 0, 0
         if self.enable_speedtest:
-            speed_success, speed_mbps, speed_mbs, speed_desc = self.test_proxy_download_speed(original_config)
-            status = "✅" if speed_success else "❌"
-            speed_info = f"{speed_mbps:.2f}Mbps" if speed_success else "失败"
-            print(f"  速度({speed_desc}): {status} {speed_info}")
+            speed_success, speed_mbps, speed_mbs = self.test_download_speed_via_proxy(original_config)
+            if speed_success:
+                print(f"  速度(节点→目标): ✅ {speed_mbps:.2f} Mbps")
+            else:
+                print(f"  速度(节点→目标): ❌ 失败")
         
-        # 4. 测试通过节点的TLS/HTTP
-        tls_success, tls_latency, tls_info, tls_desc = False, 0, "", ""
+        # 4. 测试通过节点代理的TLS/HTTP
+        tls_success, tls_latency, tls_info = False, 0, ""
         if self.enable_tls_http_test:
-            tls_success, tls_latency, tls_info, tls_desc = self.test_proxy_tls_http(original_config)
-            status = "✅" if tls_success else "❌"
-            latency_info = f"{tls_latency:.1f}ms" if tls_success else "失败"
-            print(f"  TLS({tls_desc}): {status} {latency_info} {tls_info}")
+            tls_success, tls_latency, tls_info = self.test_tls_http_via_proxy(original_config)
+            if tls_success:
+                print(f"  TLS(节点→目标): ✅ {tls_latency:.1f}ms ({tls_info})")
+            else:
+                print(f"  TLS(节点→目标): ❌ 失败 ({tls_info})")
         
         # 统计结果
         return {
@@ -307,6 +395,7 @@ class NodeConnectivityTester:
             'tcp_latency': tcp_latency,
             'speed_success': speed_success,
             'speed_mbps': speed_mbps,
+            'speed_mbs': speed_mbs,
             'tls_success': tls_success,
             'tls_latency': tls_latency,
             'tls_info': tls_info
@@ -320,6 +409,7 @@ class NodeConnectivityTester:
         
         print(f"\n开始测试 {len(nodes)} 个节点...")
         print("筛选条件: 必须同时满足 TCP连接 + 下载测试 + TLS测试 三个条件")
+        print("=" * 50)
         
         valid_nodes = []
         
