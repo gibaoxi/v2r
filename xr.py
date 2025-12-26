@@ -42,7 +42,7 @@ HTTP_TEST_URLS = [
     "http://www.google.com/generate_204",
     "http://www.apple.com/library/test/success.html",
     "http://connectivitycheck.android.com/generate_204",
-    "http://www.msftconnecttest.com/connecttest.txt",
+    "http://www.baidu.com/favicon.ico","http://www.163.com/favicon.ico"
 ]
 
 # ==========================
@@ -588,7 +588,7 @@ if __name__ == "__main__":
     parser.add_argument('-t', '--timeout', type=int, default=HTTP_TIMEOUT,
                        help=f'HTTP 测试超时时间 (默认: {HTTP_TIMEOUT})')
     parser.add_argument('-f', '--file', default='sub.txt',
-                       help='订阅文件路径 (默认: sub.txt)')
+                       help='订阅文件路径 (默认: all_configs.txt)')
     
     args = parser.parse_args()
     
@@ -596,10 +596,10 @@ if __name__ == "__main__":
     CONCURRENT_TESTS = args.concurrent
     HTTP_TIMEOUT = args.timeout
     
-    if args.file != 'sub.txt':
+    if args.file != 'all_configs.txt':
         # 如果指定了不同的文件，复制到 sub.txt
         if os.path.exists(args.file):
-            shutil.copy(args.file, 'sub.txt')
+            shutil.copy(args.file, 'all_configs.txt')
             log.info(f"使用订阅文件: {args.file}")
     
     log.info(f"并发测试数: {CONCURRENT_TESTS}, HTTP超时: {HTTP_TIMEOUT}秒")
