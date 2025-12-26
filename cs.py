@@ -6,20 +6,27 @@ import subprocess
 import json
 import re
 import requests
+import ssl
 from urllib.parse import urlparse
 import base64
+import warnings
+from urllib3.exceptions import InsecureRequestWarning
+
+# 抑制SSL证书警告
+warnings.filterwarnings('ignore', category=InsecureRequestWarning)
+requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 class NodeConnectivityTester:
-    def __init__(self, enable_ping=True, enable_tcp=True, enable_speedtest=True, enable_url_test=True):
+    def __init__(self, enable_ping=True, enable_tcp=True, enable_speedtest=True, enable_tls_http_test=True):
         self.sub_file = "ping.txt"
         self.ping_timeout = 3
         self.tcp_timeout = 5
         self.speedtest_timeout = 10
-        self.url_test_timeout = 8
+        self.tls_http_timeout = 8
         self.enable_ping = enable_ping
         self.enable_tcp = enable_tcp
         self.enable_speedtest = enable_speedtest
-        self.enable_url_test = enable_url_test
+        self.enable_tls_http_test = enable_tls_http_test
         
         # 速度测试配置
         self.speedtest_files = [
@@ -27,11 +34,14 @@ class NodeConnectivityTester:
             "https://proof.ovh.net/files/10Mb.dat",
         ]
         
-        # URL延迟测试配置
-        self.url_test_sites = [
-            "https://ip.sb", 
-            "http://www.cloudflare.com",
-            "http://www.baidu.com",
+        # TLS/HTTP测试配置
+        self.tls_test_sites = [
+            "https://www.google.com",
+            "https://www.github.com", 
+            "https://www.cloudflare.com",
+            "https://www.baidu.com",
+            "https://1.1.1.1",
+            "https://8.8.8.8"
         ]
         
     def read_nodes(self):
@@ -142,7 +152,11 @@ class NodeConnectivityTester:
             test_url = self.speedtest_files[0]
             start_time = time.time()
             
-            response = requests.get(test_url, timeout=self.speedtest_timeout, stream=True)
+            # 使用session来复用连接
+            session = requests.Session()
+            session.verify = False  # 禁用证书验证
+            response = session.get(test_url, timeout=self.speedtest_timeout, stream=True)
+            
             total_size = 0
             chunk_size = 10240
             
@@ -169,43 +183,75 @@ class NodeConnectivityTester:
         except Exception:
             return False, 0, 0
 
-    def test_url_latency_direct(self, host):
-        """直接测试URL延迟"""
-        if not self.enable_url_test:
-            return False, 0
+    def test_tls_http_connectivity(self, host):
+        """测试节点是否能完成TLS/HTTP连接"""
+        if not self.enable_tls_http_test:
+            return False, 0, "disabled"
             
         try:
-            best_latency = float('inf')
             success_count = 0
+            total_tests = 0
+            best_latency = float('inf')
+            protocols = []
             
-            for test_url in self.url_test_sites:
+            # 使用session来复用连接
+            session = requests.Session()
+            session.verify = False  # 禁用证书验证
+            
+            for test_url in self.tls_test_sites:
                 try:
+                    total_tests += 1
                     start_time = time.time()
-                    response = requests.get(
+                    
+                    response = session.get(
                         test_url, 
-                        timeout=self.url_test_timeout,
-                        verify=False,
+                        timeout=self.tls_http_timeout,
                         allow_redirects=True
                     )
                     latency = (time.time() - start_time) * 1000
                     
+                    # 检查响应状态
                     if response.status_code == 200:
                         success_count += 1
                         if latency < best_latency:
                             best_latency = latency
-                            
+                        
+                        # 检测协议类型
+                        if response.url.startswith('https://'):
+                            protocols.append('TLS/HTTPS')
+                        else:
+                            protocols.append('HTTP')
+                    
                     response.close()
                     
+                except requests.exceptions.SSLError:
+                    # SSL错误，但至少尝试了TLS连接
+                    protocols.append('TLS_Failed')
+                except requests.exceptions.ConnectTimeout:
+                    protocols.append('Timeout')
+                except requests.exceptions.ConnectionError:
+                    protocols.append('ConnectionError')
                 except Exception:
-                    continue
+                    protocols.append('OtherError')
             
-            if success_count > 0 and best_latency != float('inf'):
-                return True, best_latency
+            if success_count > 0:
+                # 计算成功率
+                success_rate = (success_count / total_tests) * 100
+                
+                # 确定主要协议
+                if 'TLS/HTTPS' in protocols:
+                    protocol = 'TLS/HTTPS'
+                elif 'HTTP' in protocols:
+                    protocol = 'HTTP'
+                else:
+                    protocol = 'Failed'
+                
+                return True, best_latency, f"{protocol}({success_rate:.1f}%)"
             else:
-                return False, 0
+                return False, 0, "AllFailed"
                 
         except Exception:
-            return False, 0
+            return False, 0, "Error"
     
     def test_single_node(self, node, index):
         """测试单个节点"""
@@ -228,8 +274,9 @@ class NodeConnectivityTester:
                 'speed_success': False,
                 'speed_mbps': 0,
                 'speed_mbs': 0,
-                'url_success': False,
-                'url_latency': 0
+                'tls_http_success': False,
+                'tls_http_latency': 0,
+                'tls_http_protocol': ''
             }
         
         print(f"测试节点 {index}: {host}" + (f":{port}" if port else ""))
@@ -261,14 +308,14 @@ class NodeConnectivityTester:
             else:
                 print(f"  速度: 失败")
         
-        # 测试URL延迟
-        url_success, url_latency = False, 0
-        if self.enable_url_test:
-            url_success, url_latency = self.test_url_latency_direct(host)
-            if url_success:
-                print(f"  URL延迟: {url_latency:.1f}ms")
+        # 测试TLS/HTTP连接性
+        tls_http_success, tls_http_latency, tls_http_protocol = False, 0, ""
+        if self.enable_tls_http_test:
+            tls_http_success, tls_http_latency, tls_http_protocol = self.test_tls_http_connectivity(host)
+            if tls_http_success:
+                print(f"  TLS/HTTP: {tls_http_latency:.1f}ms ({tls_http_protocol})")
             else:
-                print(f"  URL延迟: 失败")
+                print(f"  TLS/HTTP: 失败 ({tls_http_protocol})")
         
         # 统计成功测试数量
         success_count = 0
@@ -289,9 +336,9 @@ class NodeConnectivityTester:
             if speed_success:
                 success_count += 1
                 
-        if self.enable_url_test:
+        if self.enable_tls_http_test:
             total_tests += 1
-            if url_success:
+            if tls_http_success:
                 success_count += 1
         
         # 确定状态
@@ -317,8 +364,9 @@ class NodeConnectivityTester:
             'speed_success': speed_success,
             'speed_mbps': speed_mbps,
             'speed_mbs': speed_mbs,
-            'url_success': url_success,
-            'url_latency': url_latency,
+            'tls_http_success': tls_http_success,
+            'tls_http_latency': tls_http_latency,
+            'tls_http_protocol': tls_http_protocol,
             'success_count': success_count,
             'total_tests': total_tests
         }
@@ -331,7 +379,7 @@ class NodeConnectivityTester:
         print(f"Ping测试: {'启用' if self.enable_ping else '禁用'}")
         print(f"TCP测试: {'启用' if self.enable_tcp else '禁用'}")
         print(f"速度测试: {'启用' if self.enable_speedtest else '禁用'}")
-        print(f"URL延迟测试: {'启用' if self.enable_url_test else '禁用'}")
+        print(f"TLS/HTTP测试: {'启用' if self.enable_tls_http_test else '禁用'}")
         print("=" * 50)
         
         nodes = self.read_nodes()
@@ -382,17 +430,17 @@ def main():
         return
     
     # 配置测试开关
-    enable_ping = False
+    enable_ping = True
     enable_tcp = True
     enable_speedtest = False
-    enable_url_test = True
+    enable_tls_http_test = True
     
     # 创建测试器
     tester = NodeConnectivityTester(
         enable_ping=enable_ping, 
         enable_tcp=enable_tcp, 
         enable_speedtest=enable_speedtest,
-        enable_url_test=enable_url_test
+        enable_tls_http_test=enable_tls_http_test
     )
     
     # 运行测试
