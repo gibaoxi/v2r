@@ -41,11 +41,17 @@ jobs:
         [ -f "app.py" ] && python app.py || echo "app.py不存在"
         [ -f "sort.py" ] && python sort.py || echo "sort.py不存在"
         [ -f "best1.py" ] && python best.py || echo "best.py不存在"
-
+   - name: Download V2Ray
+      run: |
+        mkdir -p v2ray
+        cd v2ray
+        wget https://github.com/v2fly/v2ray-core/releases/download/v5.7.0/v2ray-linux-64.zip
+        unzip v2ray-linux-64.zip
+        chmod +x v2ray
     - name: Run test script
       run: |
         echo "运行测试脚本..."
-        [ -f "test.py" ] && python v22.py || echo "test.py不存在"
+        [ -f "test.py" ] && python v2.py || echo "test.py不存在"
 
     - name: Commit changes
       run: |
