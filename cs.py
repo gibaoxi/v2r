@@ -11,15 +11,17 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urlparse
 
 class NodeConnectivityTester:
-    def __init__(self, enable_ping=True, enable_tcp=True, enable_speedtest=True):
+    def __init__(self, enable_ping=True, enable_tcp=True, enable_speedtest=True, enable_url_test=True):
         self.sub_file = "ping.txt"
         self.ping_timeout = 3
         self.tcp_timeout = 5
         self.speedtest_timeout = 10
+        self.url_test_timeout = 8
         self.max_workers = 3
         self.enable_ping = enable_ping  # Ping控制开关
         self.enable_tcp = enable_tcp    # TCP控制开关
         self.enable_speedtest = enable_speedtest  # 速度测试开关
+        self.enable_url_test = enable_url_test  # URL延迟测试开关
         
         # 速度测试配置
         self.speedtest_files = [
@@ -28,10 +30,18 @@ class NodeConnectivityTester:
             "https://dl.google.com/dl/android/studio/install/3.6.1.0/android-studio-ide-192.6241897-windows.exe"  # 大文件
         ]
         
+        # URL延迟测试配置
+        self.url_test_sites = [
+            "https://www.google.com",
+            "https://www.github.com", 
+            "https://www.cloudflare.com",
+            "https://www.baidu.com"
+        ]
+        
     def read_nodes(self):
         """读取节点配置"""
         if not os.path.exists(self.sub_file):
-            print(f"❌❌❌❌ 错误: 找不到 {self.sub_file}")
+            print(f"❌❌❌❌❌❌❌❌ 错误: 找不到 {self.sub_file}")
             return []
             
         nodes = []
@@ -147,7 +157,7 @@ class NodeConnectivityTester:
             # 选择测试文件
             test_url = self.speedtest_files[0]  # 使用第一个测试文件
             
-            print(f"   📊 开始速度测试: {host}")
+            print(f"   📊📊 开始速度测试: {host}")
             start_time = time.time()
             
             # 设置超时
@@ -177,24 +187,66 @@ class NodeConnectivityTester:
                 # 计算速度（MB/s）
                 speed_mbs = total_size / (download_time * 1024 * 1024)
                 
-                print(f"   📊 下载速度: {speed_mbps:.2f} Mbps ({speed_mbs:.2f} MB/s)")
+                print(f"   📊📊 下载速度: {speed_mbps:.2f} Mbps ({speed_mbs:.2f} MB/s)")
                 return True, speed_mbps, speed_mbs
             else:
-                print(f"   📊 速度测试失败: 无数据")
+                print(f"   📊📊 速度测试失败: 无数据")
                 return False, 0, 0
                 
         except requests.exceptions.Timeout:
-            print(f"   📊 速度测试超时")
+            print(f"   📊📊 速度测试超时")
             return False, 0, 0
         except requests.exceptions.RequestException as e:
-            print(f"   📊 速度测试错误: {e}")
+            print(f"   📊📊 速度测试错误: {e}")
             return False, 0, 0
         except Exception as e:
-            print(f"   📊 速度测试异常: {e}")
+            print(f"   📊📊 速度测试异常: {e}")
             return False, 0, 0
+
+    def test_url_latency(self, host):
+        """测试URL访问延迟"""
+        if not self.enable_url_test:
+            return False, 0  # 如果禁用URL测试，直接返回
+            
+        try:
+            best_latency = float('inf')
+            success_count = 0
+            
+            # 测试多个URL，取最佳延迟
+            for test_url in self.url_test_sites:
+                try:
+                    start_time = time.time()
+                    response = requests.get(test_url, timeout=self.url_test_timeout, stream=False)
+                    latency = (time.time() - start_time) * 1000  # 毫秒
+                    
+                    if response.status_code == 200:
+                        success_count += 1
+                        if latency < best_latency:
+                            best_latency = latency
+                            
+                    # 只读取少量数据来测试连接
+                    response.close()
+                    
+                except requests.exceptions.Timeout:
+                    continue
+                except requests.exceptions.RequestException:
+                    continue
+                except Exception:
+                    continue
+            
+            if success_count > 0 and best_latency != float('inf'):
+                print(f"   🌐🌐 URL延迟: ✅ {best_latency:.1f}ms (成功{success_count}/{len(self.url_test_sites)}个站点)")
+                return True, best_latency
+            else:
+                print(f"   🌐🌐 URL延迟: ❌❌❌❌❌❌❌❌ 失败")
+                return False, 0
+                
+        except Exception as e:
+            print(f"   🌐🌐 URL延迟测试异常: {e}")
+            return False, 0
     
     def test_single_node(self, node, index):
-        """测试单个节点的ICMP ping、TCP连接和下载速度"""
+        """测试单个节点的ICMP ping、TCP连接、下载速度和URL延迟"""
         config = node['config']
         original_config = node['original_config']
         
@@ -212,41 +264,50 @@ class NodeConnectivityTester:
                 'tcp_latency': None,
                 'speed_success': False,
                 'speed_mbps': 0,
-                'speed_mbs': 0
+                'speed_mbs': 0,
+                'url_success': False,
+                'url_latency': 0
             }
         
-        print(f"\n🧪🧪🧪🧪 测试节点 {index}: {host}" + (f":{port}" if port else ""))
+        print(f"\n🧪🧪🧪🧪🧪🧪🧪🧪 测试节点 {index}: {host}" + (f":{port}" if port else ""))
         
         # 1. 测试ICMP ping（根据开关决定）
         ping_success, ping_latency = False, None
         if self.enable_ping:
             ping_success, ping_latency = self.test_icmp_ping(host)
             if ping_success:
-                print(f"   📡📡📡📡 ICMP Ping: ✅ {ping_latency:.1f}ms")
+                print(f"   📡📡📡📡📡📡📡📡 ICMP Ping: ✅ {ping_latency:.1f}ms")
             else:
-                print(f"   📡📡📡📡 ICMP Ping: ❌❌❌❌ 失败")
+                print(f"   📡📡📡📡📡📡📡📡 ICMP Ping: ❌❌❌❌❌❌❌❌ 失败")
         else:
-            print(f"   📡📡📡📡 ICMP Ping: 🔄 已禁用")
+            print(f"   📡📡📡📡📡📡📡📡 ICMP Ping: 🔄🔄 已禁用")
         
         # 2. 测试TCP端口连接（根据开关决定）
         tcp_success, tcp_latency = False, None
         if self.enable_tcp and port:
             tcp_success, tcp_latency = self.test_tcp_connect(host, port)
             if tcp_success:
-                print(f"   🔌🔌🔌🔌 TCP Port: ✅ {tcp_latency:.1f}ms")
+                print(f"   🔌🔌🔌🔌🔌🔌🔌🔌 TCP Port: ✅ {tcp_latency:.1f}ms")
             else:
-                print(f"   🔌🔌🔌🔌 TCP Port: ❌❌❌❌ 失败")
+                print(f"   🔌🔌🔌🔌🔌🔌🔌🔌 TCP Port: ❌❌❌❌❌❌❌❌ 失败")
         elif self.enable_tcp and not port:
-            print(f"   🔌🔌🔌🔌 TCP Port: ⚠⚠⚠⚠⚠️ 无端口信息")
+            print(f"   🔌🔌🔌🔌🔌🔌🔌🔌 TCP Port: ⚠⚠⚠⚠⚠⚠⚠️ 无端口信息")
         else:
-            print(f"   🔌🔌🔌🔌 TCP Port: 🔄 已禁用")
+            print(f"   🔌🔌🔌🔌🔌🔌🔌🔌 TCP Port: 🔄🔄 已禁用")
         
         # 3. 测试下载速度（根据开关决定）
         speed_success, speed_mbps, speed_mbs = False, 0, 0
         if self.enable_speedtest:
             speed_success, speed_mbps, speed_mbs = self.test_download_speed(host)
         else:
-            print(f"   📊📊📊📊 速度测试: 🔄 已禁用")
+            print(f"   📊📊📊📊📊📊📊📊 速度测试: 🔄🔄 已禁用")
+        
+        # 4. 测试URL延迟（根据开关决定）
+        url_success, url_latency = False, 0
+        if self.enable_url_test:
+            url_success, url_latency = self.test_url_latency(host)
+        else:
+            print(f"   🌐🌐🌐🌐🌐🌐🌐🌐 URL延迟测试: 🔄🔄 已禁用")
         
         # 确定总体状态（考虑开关状态）
         success_count = 0
@@ -265,6 +326,11 @@ class NodeConnectivityTester:
         if self.enable_speedtest:
             total_tests += 1
             if speed_success:
+                success_count += 1
+                
+        if self.enable_url_test:
+            total_tests += 1
+            if url_success:
                 success_count += 1
         
         # 根据成功率确定状态
@@ -290,9 +356,12 @@ class NodeConnectivityTester:
             'speed_success': speed_success,
             'speed_mbps': speed_mbps,
             'speed_mbs': speed_mbs,
+            'url_success': url_success,
+            'url_latency': url_latency,
             'ping_enabled': self.enable_ping,
             'tcp_enabled': self.enable_tcp,
             'speed_enabled': self.enable_speedtest,
+            'url_enabled': self.enable_url_test,
             'success_count': success_count,
             'total_tests': total_tests
         }
@@ -300,19 +369,20 @@ class NodeConnectivityTester:
     def run_comprehensive_test(self):
         """运行综合测试"""
         print("=" * 70)
-        print("🔍🔍🔍🔍 节点连通性综合测试")
+        print("🔍🔍🔍🔍🔍🔍🔍🔍 节点连通性综合测试")
         print("=" * 70)
-        print("📊📊📊📊 测试配置:")
-        print(f"   📡📡📡📡 ICMP Ping: {'✅ 启用' if self.enable_ping else '❌ 禁用'}")
-        print(f"   🔌🔌🔌🔌 TCP端口: {'✅ 启用' if self.enable_tcp else '❌ 禁用'}")
-        print(f"   📊📊📊📊 速度测试: {'✅ 启用' if self.enable_speedtest else '❌ 禁用'}")
+        print("📊📊📊📊📊📊📊📊 测试配置:")
+        print(f"   📡📡📡📡📡📡📡📡 ICMP Ping: {'✅ 启用' if self.enable_ping else '❌❌ 禁用'}")
+        print(f"   🔌🔌🔌🔌🔌🔌🔌🔌 TCP端口: {'✅ 启用' if self.enable_tcp else '❌❌ 禁用'}")
+        print(f"   📊📊📊📊📊📊📊📊 速度测试: {'✅ 启用' if self.enable_speedtest else '❌❌ 禁用'}")
+        print(f"   🌐🌐🌐🌐🌐🌐🌐🌐 URL延迟: {'✅ 启用' if self.enable_url_test else '❌❌ 禁用'}")
         print("=" * 70)
         
         nodes = self.read_nodes()
         if not nodes:
             return
         
-        print(f"🚀🚀🚀🚀 开始测试 {len(nodes)} 个节点...")
+        print(f"🚀🚀🚀🚀🚀🚀🚀🚀 开始测试 {len(nodes)} 个节点...")
         
         results = []
         
@@ -332,11 +402,11 @@ class NodeConnectivityTester:
     def generate_detailed_report(self, results):
         """生成详细报告并保存为txt格式"""
         print("\n" + "=" * 70)
-        print("📊📊📊📊 详细测试报告")
+        print("📊📊📊📊📊📊📊📊 详细测试报告")
         print("=" * 70)
         
         # 根据启用的测试类型调整过滤逻辑
-        if not any([self.enable_ping, self.enable_tcp, self.enable_speedtest]):
+        if not any([self.enable_ping, self.enable_tcp, self.enable_speedtest, self.enable_url_test]):
             print("⚠️⚠️⚠️⚠️ 警告: 所有测试均已禁用，无法进行有效测试")
             filtered_results = []
         else:
@@ -359,24 +429,28 @@ class NodeConnectivityTester:
         parse_errors = len([r for r in results if r['status'] == 'parse_error'])
         all_failed = total - total_filtered - parse_errors
         
-        print("📈📈📈📈 总体统计:")
+        print("📈📈📈📈📈📈📈📈 总体统计:")
         print(f"   总测试节点: {total}")
-        print(f"   🔧🔧 解析错误: {parse_errors}")
-        print(f"   ❌❌❌❌ 完全失败: {all_failed}")
+        print(f"   🔧🔧🔧🔧 解析错误: {parse_errors}")
+        print(f"   ❌❌❌❌❌❌❌❌ 完全失败: {all_failed}")
         print(f"   ✅ 有效节点: {total_filtered}")
         
         # 显示测试类型统计
         if self.enable_ping:
             ping_success = len([r for r in filtered_results if r['ping_success']])
-            print(f"   📡 Ping成功: {ping_success}/{total_filtered}")
+            print(f"   📡📡 Ping成功: {ping_success}/{total_filtered}")
             
         if self.enable_tcp:
             tcp_success = len([r for r in filtered_results if r['tcp_success']])
-            print(f"   🔌 TCP成功: {tcp_success}/{total_filtered}")
+            print(f"   🔌🔌 TCP成功: {tcp_success}/{total_filtered}")
             
         if self.enable_speedtest:
             speed_success = len([r for r in filtered_results if r['speed_success']])
-            print(f"   📊 速度测试成功: {speed_success}/{total_filtered}")
+            print(f"   📊📊 速度测试成功: {speed_success}/{total_filtered}")
+            
+        if self.enable_url_test:
+            url_success = len([r for r in filtered_results if r['url_success']])
+            print(f"   🌐🌐 URL延迟成功: {url_success}/{total_filtered}")
         
         # 按速度排序（如果启用了速度测试）
         if self.enable_speedtest:
@@ -384,6 +458,8 @@ class NodeConnectivityTester:
             def get_speed_sort_key(result):
                 if result['speed_success'] and result['speed_mbps'] > 0:
                     return -result['speed_mbps']  # 负值用于降序排序
+                elif result['url_success'] and result['url_latency'] > 0:
+                    return result['url_latency'] + 5000
                 elif result['tcp_success'] and result['tcp_latency']:
                     return result['tcp_latency'] + 10000
                 elif result['ping_success'] and result['ping_latency']:
@@ -393,39 +469,43 @@ class NodeConnectivityTester:
             
             filtered_results.sort(key=get_speed_sort_key)
             
-            print(f"\n🏆🏆🏆🏆 最佳节点 (按下载速度排序):")
+            print(f"\n🏆🏆🏆🏆🏆🏆🏆🏆 最佳节点 (按下载速度排序):")
             for i, node in enumerate(filtered_results[:10], 1):
                 ping_info = f"{node['ping_latency']:.1f}ms" if node['ping_success'] and self.enable_ping else "禁用" if not self.enable_ping else "失败"
                 tcp_info = f"{node['tcp_latency']:.1f}ms" if node['tcp_success'] and self.enable_tcp else "禁用" if not self.enable_tcp else "失败"
                 speed_info = f"{node['speed_mbps']:.2f}Mbps" if node['speed_success'] and self.enable_speedtest else "禁用" if not self.enable_speedtest else "失败"
+                url_info = f"{node['url_latency']:.1f}ms" if node['url_success'] and self.enable_url_test else "禁用" if not self.enable_url_test else "失败"
                 
                 status_icon = "✅" if node['success_count'] == node['total_tests'] else "⚠️"
                 
                 print(f"{i:2d}. {status_icon} {node['host']:15} "
-                      f"Ping:{ping_info:>8} TCP:{tcp_info:>8} Speed:{speed_info:>10}")
+                      f"Ping:{ping_info:>8} TCP:{tcp_info:>8} Speed:{speed_info:>10} URL:{url_info:>8}")
         
         else:
             # 按延迟排序（如果没有速度测试）
             def get_latency_sort_key(result):
-                if result['tcp_success'] and result['tcp_latency']:
-                    return result['tcp_latency']
+                if result['url_success'] and result['url_latency'] > 0:
+                    return result['url_latency']
+                elif result['tcp_success'] and result['tcp_latency']:
+                    return result['tcp_latency'] + 1000
                 elif result['ping_success'] and result['ping_latency']:
-                    return result['ping_latency'] + 1000
+                    return result['ping_latency'] + 2000
                 else:
                     return float('inf')
             
             filtered_results.sort(key=get_latency_sort_key)
             
-            print(f"\n🏆🏆🏆🏆 最佳节点 (按延迟排序):")
+            print(f"\n🏆🏆🏆🏆🏆🏆🏆🏆 最佳节点 (按延迟排序):")
             for i, node in enumerate(filtered_results[:10], 1):
                 ping_info = f"{node['ping_latency']:.1f}ms" if node['ping_success'] and self.enable_ping else "禁用" if not self.enable_ping else "失败"
                 tcp_info = f"{node['tcp_latency']:.1f}ms" if node['tcp_success'] and self.enable_tcp else "禁用" if not self.enable_tcp else "失败"
                 speed_info = f"{node['speed_mbps']:.2f}Mbps" if node['speed_success'] and self.enable_speedtest else "禁用" if not self.enable_speedtest else "失败"
+                url_info = f"{node['url_latency']:.1f}ms" if node['url_success'] and self.enable_url_test else "禁用" if not self.enable_url_test else "失败"
                 
                 status_icon = "✅" if node['success_count'] == node['total_tests'] else "⚠️"
                 
                 print(f"{i:2d}. {status_icon} {node['host']:15} "
-                      f"Ping:{ping_info:>8} TCP:{tcp_info:>8} Speed:{speed_info:>10}")
+                      f"Ping:{ping_info:>8} TCP:{tcp_info:>8} Speed:{speed_info:>10} URL:{url_info:>8}")
         
         # 保存为TXT文件（每行一个原始链接）
         if filtered_results:
@@ -440,7 +520,8 @@ class NodeConnectivityTester:
             'test_config': {
                 'enable_ping': self.enable_ping,
                 'enable_tcp': self.enable_tcp,
-                'enable_speedtest': self.enable_speedtest
+                'enable_speedtest': self.enable_speedtest,
+                'enable_url_test': self.enable_url_test
             },
             'total_nodes_tested': total,
             'filtered_nodes_count': total_filtered,
@@ -449,7 +530,8 @@ class NodeConnectivityTester:
                 'all_failed': all_failed,
                 'ping_success': len([r for r in filtered_results if r['ping_success']]) if self.enable_ping else 0,
                 'tcp_success': len([r for r in filtered_results if r['tcp_success']]) if self.enable_tcp else 0,
-                'speed_success': len([r for r in filtered_results if r['speed_success']]) if self.enable_speedtest else 0
+                'speed_success': len([r for r in filtered_results if r['speed_success']]) if self.enable_speedtest else 0,
+                'url_success': len([r for r in filtered_results if r['url_success']]) if self.enable_url_test else 0
             },
             'nodes_sorted': [
                 {
@@ -461,6 +543,7 @@ class NodeConnectivityTester:
                     'tcp_latency': r.get('tcp_latency'),
                     'speed_mbps': r.get('speed_mbps'),
                     'speed_mbs': r.get('speed_mbs'),
+                    'url_latency': r.get('url_latency'),
                     'success_count': r.get('success_count'),
                     'total_tests': r.get('total_tests')
                 }
@@ -471,7 +554,7 @@ class NodeConnectivityTester:
         with open('connectivity_results.json', 'w', encoding='utf-8') as f:
             json.dump(json_data, f, ensure_ascii=False, indent=2)
         
-        print(f"\n💾💾💾💾 保存结果:")
+        print(f"\n💾💾💾💾💾💾💾 保存结果:")
         if filtered_results:
             print(f"   📄📄 filtered_nodes.txt - {total_filtered} 个有效节点")
         else:
@@ -482,7 +565,7 @@ class NodeConnectivityTester:
 def main():
     """主函数"""
     # 检查文件是否存在
-    if not os.path.exists("all_configs.txt"):
+    if not os.path.exists("sub.txt"):
         print("❌❌❌❌ 请确保 sub.txt 文件存在于当前目录")
         print("📁📁📁📁 当前目录文件:")
         for file in os.listdir('.'):
@@ -490,16 +573,18 @@ def main():
         return
     
     # 在这里设置测试开关
-    enable_ping = True      # Ping测试开关
-    enable_tcp = True         # TCP测试开关  
-    enable_speedtest = True   # 速度测试开关
+    enable_ping = False      # Ping测试开关
+    enable_tcp = True        # TCP测试开关  
+    enable_speedtest = flase
+    enable_url_test=True   # 速度测试开关
     
     tester = NodeConnectivityTester(
         enable_ping=enable_ping, 
         enable_tcp=enable_tcp, 
         enable_speedtest=enable_speedtest
-    )
+        enable_url_test=enable_url_test
     results = tester.run_comprehensive_test()
 
 if __name__ == "__main__":
     main()
+    
