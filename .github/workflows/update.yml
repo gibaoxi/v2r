@@ -97,6 +97,7 @@ jobs:
       - name: Test nodes with Xray
         run: |
           chmod +x sing-box/sing-box
+          chmod +x xray/xray
           python3 xr.py
 
       # --------- 第四阶段：统一提交 ---------
