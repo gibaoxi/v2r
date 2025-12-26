@@ -35,7 +35,6 @@ class NodeConnectivityTester:
         
         # TLS/HTTP测试配置
         self.tls_test_sites = [
-            "https://www.google.com",
             "https://www.github.com", 
             "https://www.cloudflare.com",
             "https://www.baidu.com",
