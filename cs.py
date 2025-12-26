@@ -17,7 +17,7 @@ requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 class NodeConnectivityTester:
     def __init__(self, enable_ping=True, enable_tcp=True, enable_speedtest=True, enable_tls_http_test=True):
-        self.sub_file = "ping.txt"
+        self.sub_file = "all_configs.txt"
         self.ping_timeout = 3
         self.tcp_timeout = 5
         self.speedtest_timeout = 15  # 增加超时时间
