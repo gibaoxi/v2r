@@ -49,7 +49,7 @@ jobs:
     - name: Run test script
       run: |
         echo "运行测试脚本..."
-        [ -f "test.py" ] && python test.py || echo "test.py不存在"
+        [ -f "test.py" ] && python cs.py || echo "test.py不存在"
 
     - name: Commit changes
       run: |
