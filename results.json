@@ -1,0 +1,16 @@
+{
+  "timestamp": 1766746684.5899894,
+  "total_tested": 1,
+  "valid_nodes": 1,
+  "results": [
+    {
+      "config": "vmess://eyJ2IjoiMiIsInBzIjoiSEsgXHVkODNjXHVkZGVkXHVkODNjXHVkZGYwIFx1MjUwNyBWTUVTUy1XUy1OVExTIC0gQWxpYmFiYSBVUyBUZWNobm9sb2d5IENvLiwgTHRkLiBcdTI1MDcgNDcuMjQ0LjEyMC4xOTciLCJhZGQiOiI0Ny4yNDQuMTIwLjE5NyIsInBvcnQiOjQ0ODY3LCJpZCI6Ijg0NWU2YjA4LTI5MTktNDI5MC1hZGUwLTVkYzdkY2VhNTljYSIsImFpZCI6MCwic2N5IjoiYXV0byIsIm5ldCI6IndzIiwidHlwZSI6Ii0tLSIsInBhdGgiOiIvYXJraT9lZD0yMDQ4In0",
+      "index": 30,
+      "success": true,
+      "connectivity_rate": 100.0,
+      "latency": 4779.980421066284,
+      "speed_mbps": 0.10683781349666731,
+      "error": ""
+    }
+  ]
+}
