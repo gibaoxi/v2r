@@ -562,7 +562,7 @@ class GitHubV2RayTester:
         
         return result
     
-    def read_nodes(self, filename="ping.txt"):
+    def read_nodes(self, filename="sub.txt"):
         """读取节点列表"""
         if not os.path.exists(filename):
             print(f"❌ 找不到节点文件: {filename}")
