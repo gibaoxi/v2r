@@ -27,14 +27,12 @@ SOCKS_PORT_START = 10808
 
 # 测试端点
 HTTP_TEST_URLS = [
-    "https://www.google.com",
-    "https://cloudflare.com",
-    "https://www.bing.com"
+    
+    "https://cloudflare.com"
 ]
 
 DOWNLOAD_URLS = [
-    "https://speed.cloudflare.com/__down?bytes=1048576",  # 1MB
-    "https://dl.google.com/dl/android/aosp/sailfish-qq1a.191205.008-factory-295a07b3.zip"  # 小文件
+    "https://speed.cloudflare.com/__down?bytes=1048576"
 ]
 
 # 超时设置
