@@ -300,53 +300,85 @@ with open("sub.txt", encoding="utf-8") as f:
                 print(f"跳过无法解析的节点: {line[:50]}...")
                 continue
 
-            # TCP测试
+            # 初始化测试结果
             tcp_ok = True
             tcp_ms = -1
+            http_ok = True
+            http_ms = -1
+            speed = 0
+            download_time = -1
+            p = None
+
+            # TCP测试
             if TCP_TEST:
+                # 第一次TCP测试
                 ok, tcp_ms = tcp_test(node["server"], node["port"])
                 if not ok:
-                    print(f"TCP测试失败: {node['server']}:{node['port']}")
-                    continue
-                tcp_ok = ok
+                    print(f"第一次TCP测试失败，进行第二次测试: {node['server']}:{node['port']}")
+                    # 等待一下再测试
+                    time.sleep(1)
+                    ok, tcp_ms = tcp_test(node["server"], node["port"])
+                    if not ok:
+                        print(f"第二次TCP测试失败: {node['server']}:{node['port']}")
+                        tcp_ok = False
+                    else:
+                        tcp_ok = True
+                        print(f"第二次TCP测试成功: {node['server']}:{node['port']}, 延迟: {tcp_ms}ms")
+                else:
+                    tcp_ok = True
+                    print(f"第一次TCP测试成功: {node['server']}:{node['port']}, 延迟: {tcp_ms}ms")
             else:
                 print(f"跳过TCP测试: {node['server']}:{node['port']}")
 
-            # 生成配置并启动Xray
-            config = gen_config(node)
-            with open(CONFIG, "w") as c:
-                json.dump(config, c, indent=2)
+            # 生成配置并启动Xray（如果需要进行HTTP或下载测试）
+            if (HTTP_TEST or DOWNLOAD_TEST) and (not TCP_TEST or tcp_ok):
+                config = gen_config(node)
+                with open(CONFIG, "w") as c:
+                    json.dump(config, c, indent=2)
 
-            p = subprocess.Popen([XRAY_BIN, "run", "-config", CONFIG])
-            time.sleep(3)
+                p = subprocess.Popen([XRAY_BIN, "run", "-config", CONFIG])
+                time.sleep(3)
 
             # HTTP测试
-            http_ok = True
-            http_ms = -1
-            if HTTP_TEST:
+            if HTTP_TEST and (not TCP_TEST or tcp_ok):
+                # 第一次HTTP测试
                 ok, http_ms = http_test()
                 if not ok:
-                    p.terminate()
-                    print(f"HTTP测试失败: {node['server']}")
-                    continue
-                http_ok = ok
+                    print(f"第一次HTTP测试失败，进行第二次测试: {node['server']}")
+                    # 等待一下再测试
+                    time.sleep(2)
+                    ok, http_ms = http_test()
+                    if not ok:
+                        print(f"第二次HTTP测试失败: {node['server']}")
+                        http_ok = False
+                    else:
+                        http_ok = True
+                        print(f"第二次HTTP测试成功: {node['server']}, 延迟: {http_ms}ms")
+                else:
+                    http_ok = True
+                    print(f"第一次HTTP测试成功: {node['server']}, 延迟: {http_ms}ms")
+            elif HTTP_TEST:
+                print(f"跳过HTTP测试（TCP测试失败）: {node['server']}")
+                http_ok = False
             else:
                 print(f"跳过HTTP测试: {node['server']}")
 
             # 下载测试
-            speed = 0
-            download_time = -1
-            if DOWNLOAD_TEST:
+            if DOWNLOAD_TEST and (not HTTP_TEST or http_ok):
+                # 只进行一次下载测试
                 speed, download_time = speed_test()
-                # 只要下载成功（不管速度多慢）就保留节点
                 if download_time <= 0:
-                    p.terminate()
                     print(f"下载测试失败: {node['server']}")
-                    continue
+                else:
+                    print(f"下载测试成功: {node['server']}, 速度: {speed}Mbps, 时间: {download_time}s")
+            elif DOWNLOAD_TEST:
+                print(f"跳过下载测试（HTTP测试失败）: {node['server']}")
             else:
-                print(f"跳過下载测试: {node['server']}")
+                print(f"跳过下载测试: {node['server']}")
 
-            p.terminate()
+            # 终止代理进程
+            if p:
+                p.terminate()
 
             # 根据启用的测试确定是否保留节点
             node_ok = True
@@ -373,6 +405,8 @@ with open("sub.txt", encoding="utf-8") as f:
                 
         except Exception as e:
             print(f"处理节点时出错: {line[:30]}... 错误: {str(e)}")
+            if p:
+                p.terminate()
             continue
 
 # 根据启用的测试项目确定排序方式
