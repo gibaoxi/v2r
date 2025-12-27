@@ -116,7 +116,7 @@ class NodeParser:
                 # 格式: ss://base64@host:port
                 parts = uri[5:].split("@", 1)
                 if len(parts) != 2:
-                    raise ValueError("SS链接格式错误: 缺少@符号分割")
+                    return None
                 
                 # 尝试解码base64部分
                 try:
@@ -124,9 +124,8 @@ class NodeParser:
                     if ":" in decoded:
                         method, password = decoded.split(":", 1)
                     else:
-                        raise ValueError("Base64解码后格式错误")
+                        return None
                 except:
-                    # 如果base64解码失败，可能是其他格式，跳过
                     return None
                 
                 server_part = parts[1]
@@ -138,21 +137,15 @@ class NodeParser:
                         method_password, server_part = decoded.split("@", 1)
                         method, password = method_password.split(":", 1)
                     else:
-                        # 直接包含方法:密码@服务器:端口
-                        if ":" in decoded and "@" in decoded:
-                            # 处理可能的错误格式
-                            return None
-                        else:
-                            raise ValueError("旧格式SS链接解析失败")
-                except Exception as e:
-                    log(f"SS旧格式解析失败: {e}", "WARN")
+                        return None
+                except:
                     return None
             
             # 分割服务器和端口
             if ":" in server_part:
                 host, port = server_part.rsplit(":", 1)
             else:
-                raise ValueError("服务器部分缺少端口")
+                return None
             
             return {
                 "_type": "ss",
@@ -220,14 +213,14 @@ class NodeParser:
             query_params = parse_qs(parsed.query)
             params = {}
             for key, value in query_params.items():
-                params[key] = unquote(value[0])  # URL解码
+                params[key] = unquote(value[0])
             
             node = {
                 "_type": "vless",
                 "host": host,
                 "port": int(port),
                 "uuid": userinfo,
-                "path": unquote(parsed.path),  # URL解码路径
+                "path": unquote(parsed.path),
                 "_raw": uri
             }
             
@@ -249,7 +242,7 @@ class NodeParser:
                 
             password, hostport = parsed.netloc.split('@', 1)
             if ':' in hostport:
-                host, port = hostport.rsplit(':', 1)
+                host, port = hostport.rsplit(':", 1)
             else:
                 host = hostport
                 port = "443"
@@ -258,14 +251,14 @@ class NodeParser:
             query_params = parse_qs(parsed.query)
             params = {}
             for key, value in query_params.items():
-                params[key] = unquote(value[0])  # URL解码
+                params[key] = unquote(value[0])
             
             node = {
                 "_type": "trojan",
                 "host": host,
                 "port": int(port),
                 "password": password,
-                "path": unquote(parsed.path),  # URL解码路径
+                "path": unquote(parsed.path),
                 "_raw": uri
             }
             
@@ -327,7 +320,6 @@ class XrayConfigGenerator:
         # WebSocket设置
         elif base_settings["network"] == "ws":
             ws_headers = {}
-            # 设置Host头（优先使用host参数，否则使用sni，最后使用服务器host）
             host_header = node.get("host") or node.get("sni") or node.get("host", "")
             if host_header:
                 ws_headers["Host"] = host_header
@@ -357,7 +349,6 @@ class XrayConfigGenerator:
             if node.get("fp"):
                 tls_settings["fingerprint"] = node.get("fp")
             
-            # 添加ALPN设置
             if node.get("alpn"):
                 tls_settings["alpn"] = node.get("alpn").split(",")
             
@@ -397,7 +388,6 @@ class XrayConfigGenerator:
             }
         
         elif node["_type"] == "vmess":
-            # 用户认证配置
             user_config = {
                 "id": node["uuid"],
                 "alterId": node.get("aid", 0),
@@ -480,7 +470,7 @@ class XrayConfigGenerator:
             }
         }
 
-# ================== 节点测试器（优化REALITY测试） ==================
+# ================== 节点测试器（修复版） ==================
 class NodeTester:
     """节点测试管理器"""
     
@@ -519,6 +509,7 @@ class NodeTester:
         # 其他协议：完整测试流程
         socks_port = SOCKS_BASE + index
         config_path = f"/tmp/xray_test_{index}_{int(time.time())}.json"
+        process = None
         
         try:
             # 生成配置
@@ -560,7 +551,123 @@ class NodeTester:
         finally:
             # 清理进程（如果不是REALITY协议）
             if node.get("security") != "reality":
-                if 'process' in locals() and process.poll() is None:
+                if process and process.poll() is None:
                     try:
                         os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-                        process.wait
+                        process.wait(timeout=2)
+                    except:
+                        try:
+                            process.kill()
+                        except:
+                            pass
+                
+                if process and process.pid in self.active_processes:
+                    del self.active_processes[process.pid]
+            
+            # 清理临时文件
+            try:
+                if os.path.exists(config_path):
+                    os.remove(config_path)
+                    if config_path in self.temp_files:
+                        self.temp_files.remove(config_path)
+            except:
+                pass
+# ================== 主程序（续）==================
+def main():
+    try:
+        # 初始化检查
+        initialize()
+        
+        # 读取订阅文件
+        raw_lines = []
+        with open(SUB_FILE, 'r', encoding='utf-8', errors='ignore') as f:
+            for line in f:
+                parts = line.strip().split()
+                raw_lines.extend(parts)
+        
+        # 解析节点
+        nodes = []
+        parser = NodeParser()
+        
+        for raw in raw_lines:
+            node = parser.parse_node(raw)
+            if node:
+                nodes.append(node)
+        
+        log(f"成功解析节点: {len(nodes)}个", "SUCCESS")
+        
+        if not nodes:
+            log("没有找到有效节点，请检查订阅文件格式", "ERROR")
+            return
+        
+        # 测试节点
+        tester = NodeTester()
+        good_nodes = []
+        bad_nodes = []
+        
+        try:
+            with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+                future_to_node = {
+                    executor.submit(tester.test_single_node, node, idx): (idx, node) 
+                    for idx, node in enumerate(nodes)
+                }
+                
+                completed = 0
+                for future in as_completed(future_to_node):
+                    idx, node = future_to_node[future]
+                    
+                    try:
+                        success, reason = future.result()
+                        with lock:
+                            if success:
+                                # 构建协议信息字符串
+                                protocol_info = node['_type']
+                                if node.get('security') == 'reality':
+                                    protocol_info += '+REALITY'
+                                elif node.get('security') == 'tls' or node.get('tls'):
+                                    protocol_info += '+TLS'
+                                if node.get('type') and node.get('type') != 'tcp':
+                                    protocol_info += f"+{node['type'].upper()}"
+                                
+                                log(f"✓ [{idx:3d}] {protocol_info:20} {reason}", "SUCCESS")
+                                good_nodes.append(node["_raw"])
+                            else:
+                                log(f"✗ [{idx:3d}] {node['_type']:20} {reason}", "ERROR")
+                                bad_nodes.append(f"{node['_raw']}  # {reason}")
+                            
+                            completed += 1
+                            if completed % 10 == 0 or completed == len(nodes):
+                                log(f"测试进度: {completed}/{len(nodes)}", "INFO")
+                                
+                    except Exception as e:
+                        with lock:
+                            log(f"✗ [{idx:3d}] 测试异常: {e}", "ERROR")
+                            bad_nodes.append(f"{node['_raw']}  # exception")
+                            completed += 1
+            
+            # 保存结果
+            with open(GOOD_FILE, 'w', encoding='utf-8') as f:
+                f.write("\n".join(good_nodes))
+            
+            with open(BAD_FILE, 'w', encoding='utf-8') as f:
+                f.write("\n".join(bad_nodes))
+            
+            # 输出统计信息
+            success_rate = (len(good_nodes) / len(nodes)) * 100 if nodes else 0
+            log(f"测试完成! 可用: {len(good_nodes)}/{len(nodes)} 成功率: {success_rate:.1f}%", "SUCCESS")
+            log(f"结果已保存: {GOOD_FILE}, {BAD_FILE}", "INFO")
+            
+        finally:
+            tester.cleanup()
+            
+    except FileNotFoundError as e:
+        log(str(e), "ERROR")
+        sys.exit(1)
+    except KeyboardInterrupt:
+        log("用户中断测试", "WARN")
+    except Exception as e:
+        log(f"程序异常: {e}", "ERROR")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
