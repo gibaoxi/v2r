@@ -1,149 +1,168 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 import os
 import json
-import base64
-import random
-import socket
 import time
-import shutil
+import base64
+import socket
+import threading
 import subprocess
-from urllib.parse import urlparse, parse_qs
+import requests
+from urllib.parse import unquote
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-import requests
+# ================== 基本配置 ==================
 
-################################
-# 参数
-################################
-
-XRAY_BIN = os.environ.get("XRAY_BIN", "./xray/xray")
-WORKDIR = "./tmp"
-INPUT_FILE = "sub.txt"
-OUTPUT_FILE = "ping.txt"
+XRAY_BIN = "./xray"          # xray 路径
+ALL_CONFIGS = "sub.txt"
+GOOD_FILE = "ping.txt"
+BAD_FILE = "bad.txt"
 
 SOCKS_PORT_BASE = 20000
-TIMEOUT = 10
 MAX_WORKERS = 3
 
-TCP_TEST_HOSTS = [
-    ("1.1.1.1", 443),
-    ("8.8.8.8", 443),
-    ("www.cloudflare.com", 443),
-    ("www.google.com", 443),
-]
+TCP_TIMEOUT = 6
+HTTP_TIMEOUT = 10
 
 HTTP_TEST_URLS = [
-    "https://www.cloudflare.com/cdn-cgi/trace",
-    "https://www.gstatic.com/generate_204",
-    "https://www.apple.com/library/test/success.html",
+    "http://connectivitycheck.gstatic.com/generate_204",
+    "http://www.msftconnecttest.com/connecttest.txt",
+    "http://captive.apple.com/hotspot-detect.html",
 ]
 
-################################
-# 工具
-################################
+lock = threading.Lock()
+
+# ================== 工具 ==================
 
 def log(msg):
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
-def clean_tmp():
-    if os.path.exists(WORKDIR):
-        shutil.rmtree(WORKDIR)
-    os.makedirs(WORKDIR, exist_ok=True)
-
-def port_free(port):
+def tcp_ping(host, port, timeout=TCP_TIMEOUT):
     try:
-        s = socket.socket()
-        s.bind(("127.0.0.1", port))
-        s.close()
-        return True
-    except:
-        return False
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except Exception as e:
+        return False, str(e)
 
-################################
-# 节点解析
-################################
+# ================== SS 解析（终极稳定） ==================
 
-def parse_node(line):
-    raw = line.strip()
+def parse_ss(raw):
+    uri = raw[5:]
+
+    if "#" in uri:
+        uri = uri.split("#", 1)[0]
+    if "?" in uri:
+        uri = uri.split("?", 1)[0]
+
+    if "@" not in uri:
+        decoded = base64.b64decode(uri + "===").decode()
+        userinfo, server = decoded.rsplit("@", 1)
+    else:
+        userinfo, server = uri.rsplit("@", 1)
+
+    method, password = userinfo.split(":", 1)
+    host, port = server.rsplit(":", 1)
+
+    return {
+        "_type": "ss",
+        "method": method,
+        "password": password,
+        "host": host,
+        "port": int(port),
+    }
+
+# ================== 节点解析 ==================
+
+def parse_node(raw):
+    raw = raw.strip()
     if not raw:
         return None
 
     try:
-        if raw.startswith("vmess://"):
-            data = json.loads(base64.b64decode(raw[8:] + "===").decode())
-            data["_type"] = "vmess"
+        if raw.startswith("ss://"):
+            data = parse_ss(raw)
+
+        elif raw.startswith("vmess://"):
+            cfg = json.loads(base64.b64decode(raw[8:] + "===").decode())
+            data = {
+                "_type": "vmess",
+                "host": cfg["add"],
+                "port": int(cfg["port"]),
+                "uuid": cfg["id"],
+                "alterId": int(cfg.get("aid", 0)),
+                "net": cfg.get("net", "tcp"),
+                "tls": cfg.get("tls", ""),
+            }
 
         elif raw.startswith("vless://"):
-            u = urlparse(raw)
-            q = parse_qs(u.query)
+            body = raw[8:]
+            if "#" in body:
+                body = body.split("#", 1)[0]
+            user, rest = body.split("@", 1)
+            hostport, *_ = rest.split("?")
+            host, port = hostport.rsplit(":", 1)
             data = {
                 "_type": "vless",
-                "id": u.username,
-                "host": u.hostname,
-                "port": u.port,
-                "security": q.get("security", ["none"])[0],
-                "flow": q.get("flow", [""])[0],
-                "sni": q.get("sni", [""])[0],
+                "uuid": user,
+                "host": host,
+                "port": int(port),
+                "security": "tls" if "security=tls" in raw or "reality" in raw else "",
             }
 
         elif raw.startswith("trojan://"):
-            u = urlparse(raw)
-            q = parse_qs(u.query)
+            body = raw[9:]
+            if "#" in body:
+                body = body.split("#", 1)[0]
+            passwd, rest = body.split("@", 1)
+            host, port = rest.rsplit(":", 1)
             data = {
                 "_type": "trojan",
-                "password": u.username,
-                "host": u.hostname,
-                "port": u.port,
-                "sni": q.get("sni", [""])[0],
-            }
-
-        elif raw.startswith("ss://"):
-            uri = raw[5:].split("#")[0]
-            if "@" not in uri:
-                decoded = base64.b64decode(uri + "===").decode()
-                method_pass, server = decoded.split("@")
-            else:
-                method_pass, server = uri.split("@")
-            method, password = method_pass.split(":")
-            host, port = server.split(":")
-            data = {
-                "_type": "ss",
-                "method": method,
-                "password": password,
+                "password": passwd,
                 "host": host,
                 "port": int(port),
             }
+
         else:
             return None
 
         data["_raw"] = raw
         return data
 
-    except Exception as e:
-        return {
-            "_type": "parse_error",
-            "_raw": raw,
-            "_err": str(e)
+    except Exception:
+        return None
+
+# ================== Xray 配置 ==================
+
+def gen_xray_config(n, port):
+    inbound = {
+        "listen": "127.0.0.1",
+        "port": port,
+        "protocol": "socks",
+        "settings": {"udp": False}
+    }
+
+    if n["_type"] == "ss":
+        outbound = {
+            "protocol": "shadowsocks",
+            "settings": {
+                "servers": [{
+                    "address": n["host"],
+                    "port": n["port"],
+                    "method": n["method"],
+                    "password": n["password"]
+                }]
+            }
         }
 
-################################
-# Xray 配置
-################################
-
-def build_xray_config(n, port):
-    if n["_type"] == "vmess":
+    elif n["_type"] == "vmess":
         outbound = {
             "protocol": "vmess",
             "settings": {
                 "vnext": [{
-                    "address": n["add"],
-                    "port": int(n["port"]),
+                    "address": n["host"],
+                    "port": n["port"],
                     "users": [{
-                        "id": n["id"],
-                        "alterId": int(n.get("aid", 0)),
-                        "security": n.get("scy", "auto"),
+                        "id": n["uuid"],
+                        "alterId": n["alterId"]
                     }]
                 }]
             }
@@ -157,15 +176,10 @@ def build_xray_config(n, port):
                     "address": n["host"],
                     "port": n["port"],
                     "users": [{
-                        "id": n["id"],
-                        "flow": n["flow"],
-                        "encryption": "none",
+                        "id": n["uuid"],
+                        "encryption": "none"
                     }]
                 }]
-            },
-            "streamSettings": {
-                "security": n["security"],
-                "tlsSettings": {"serverName": n["sni"]}
             }
         }
 
@@ -176,132 +190,115 @@ def build_xray_config(n, port):
                 "servers": [{
                     "address": n["host"],
                     "port": n["port"],
-                    "password": n["password"],
-                }]
-            }
-        }
-
-    else:  # ss
-        outbound = {
-            "protocol": "shadowsocks",
-            "settings": {
-                "servers": [{
-                    "address": n["host"],
-                    "port": n["port"],
-                    "method": n["method"],
-                    "password": n["password"],
+                    "password": n["password"]
                 }]
             }
         }
 
     return {
-        "inbounds": [{
-            "listen": "127.0.0.1",
-            "port": port,
-            "protocol": "socks",
-        }],
+        "log": {"loglevel": "warning"},
+        "inbounds": [inbound],
         "outbounds": [outbound]
     }
 
-################################
-# 测试核心（可观测）
-################################
+# ================== HTTP 测试 ==================
 
-def tcp_test(host, port):
-    try:
-        socket.create_connection((host, port), timeout=TIMEOUT).close()
-        return True
-    except:
-        return False
+def http_test(port):
+    proxies = {
+        "http": f"socks5h://127.0.0.1:{port}",
+    }
+    for url in HTTP_TEST_URLS:
+        try:
+            r = requests.get(url, proxies=proxies, timeout=HTTP_TIMEOUT)
+            if r.status_code in (200, 204):
+                return True
+        except Exception:
+            continue
+    return False
+
+# ================== 节点测试 ==================
 
 def test_node(n, idx):
-    port = SOCKS_PORT_BASE + idx
+    host = n["host"]
+    port = n["port"]
 
-    if n.get("_type") == "parse_error":
-        return False, f"parse_error {n.get('_err')}"
+    ok, err = tcp_ping(host, port)
+    if not ok:
+        return False, f"tcp_failed {err}"
 
-    if not port_free(port):
-        return False, "port_busy"
+    # TLS / Reality 只做 TCP
+    if n["_type"] == "vless" and n.get("security"):
+        return True, "tcp_only_tls"
 
-    cfg_file = f"{WORKDIR}/{idx}.json"
-    json.dump(build_xray_config(n, port), open(cfg_file, "w"))
+    socks_port = SOCKS_PORT_BASE + idx
+    cfg = gen_xray_config(n, socks_port)
+    cfg_file = f"/tmp/xray_{idx}.json"
+
+    with open(cfg_file, "w") as f:
+        json.dump(cfg, f)
 
     p = subprocess.Popen(
-        [XRAY_BIN, "-c", cfg_file],
+        [XRAY_BIN, "-config", cfg_file],
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
-        text=True
+        stderr=subprocess.DEVNULL
     )
 
     time.sleep(1.5)
 
-    if p.poll() is not None:
-        err = p.stderr.read()
-        return False, f"xray_exit {err[:200]}"
-
-    tcp_targets = random.sample(TCP_TEST_HOSTS, 2)
-    tcp_results = [(h, pt, tcp_test(h, pt)) for h, pt in tcp_targets]
-
-    if not any(x[2] for x in tcp_results):
+    try:
+        if http_test(socks_port):
+            return True, "http_ok"
+        else:
+            return False, "http_failed"
+    finally:
         p.terminate()
-        return False, f"tcp_failed {tcp_results}"
+        p.wait(timeout=3)
 
-    proxies = {
-        "http": f"socks5h://127.0.0.1:{port}",
-        "https": f"socks5h://127.0.0.1:{port}",
-    }
-
-    for url in random.sample(HTTP_TEST_URLS, 2):
-        try:
-            r = requests.get(url, proxies=proxies, timeout=TIMEOUT)
-            if r.status_code in (200, 204):
-                p.terminate()
-                return True, "ok"
-        except Exception as e:
-            last_err = str(e)
-
-    p.terminate()
-    return False, f"http_failed {last_err}"
-
-################################
-# 主入口
-################################
+# ================== 主流程 ==================
 
 def main():
-    clean_tmp()
+    if not os.path.exists(XRAY_BIN):
+        log("ERROR: xray binary not found")
+        return
 
-    nodes = []
-    with open(INPUT_FILE, encoding="utf-8") as f:
-        for line in f:
-            n = parse_node(line)
-            if n:
-                nodes.append(n)
+    with open(ALL_CONFIGS) as f:
+        raws = f.readlines()
 
-    ok_nodes = []
+    nodes = [parse_node(r) for r in raws]
+    nodes = [n for n in nodes if n]
+
+    log(f"加载节点 {len(nodes)}")
+
+    good, bad = [], []
 
     with ThreadPoolExecutor(MAX_WORKERS) as ex:
-        futures = {
+        tasks = {
             ex.submit(test_node, n, i): n
             for i, n in enumerate(nodes)
         }
 
-        for f in as_completed(futures):
-            n = futures[f]
+        for fut in as_completed(tasks):
+            n = tasks[fut]
             try:
-                res, reason = f.result()
-                if res:
-                    ok_nodes.append(n["_raw"])
-                    log(f"OK  {n['_type']}")
+                ok, reason = fut.result()
+            except Exception as e:
+                ok, reason = False, f"exception {e}"
+
+            with lock:
+                if ok:
+                    log(f"OK  {n['_type']} -> {reason}")
+                    good.append(n["_raw"])
                 else:
                     log(f"BAD {n['_type']} -> {reason}")
-            except Exception as e:
-                log(f"ERROR {e}")
+                    bad.append(f"{n['_raw']}  # {reason}")
 
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
-        for x in ok_nodes:
-            f.write(x + "\n")
+    with open(GOOD_FILE, "w") as f:
+        f.write("\n".join(good))
 
-    log(f"完成：可用 {len(ok_nodes)}")
+    with open(BAD_FILE, "w") as f:
+        f.write("\n".join(bad))
+
+    log(f"完成：可用 {len(good)} / {len(nodes)}")
 
 if __name__ == "__main__":
     main()
