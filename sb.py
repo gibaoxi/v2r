@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urlparse, parse_qs, unquote
 
 # ================== 配置常量 ==================
-SINGBOX_BIN = "./singbox/singbox"
+SINGBOX_BIN = "./sing-box/sing-box"
 SUB_FILE = "all_configs.txt"
 GOOD_FILE = "ping.txt"
 BAD_FILE = "bad.txt"
