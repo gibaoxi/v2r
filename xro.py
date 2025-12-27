@@ -11,8 +11,8 @@ from urllib.parse import unquote
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # ================== 配置 ==================
-XRAY_BIN = "./xray/all_configs.txt"          # xray 路径
-ALL_CONFIGS = "sub.txt"      # 改成 sub.txt
+XRAY_BIN = "./xray/"          # xray 路径
+ALL_CONFIGS = "all_configs.txt"      # 改成 sub.txt
 GOOD_FILE = "ping.txt"
 BAD_FILE = "bad.txt"
 
