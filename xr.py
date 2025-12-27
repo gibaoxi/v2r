@@ -40,9 +40,8 @@ CONCURRENT_TESTS = 3  # 同时测试的节点数量，可根据需要调整
 
 HTTP_TEST_URLS = [
     "http://www.google.com/generate_204",
-    "http://www.apple.com/library/test/success.html",
-    "http://connectivitycheck.android.com/generate_204",
-    "http://www.baidu.com/favicon.ico","http://www.163.com/favicon.ico"
+    "https://www.gstatic.com/generate_204"
+    
 ]
 
 # ==========================
