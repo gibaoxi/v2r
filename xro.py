@@ -20,7 +20,7 @@ import requests
 
 XRAY_BIN = os.environ.get("XRAY_BIN", "./xray/xray")
 WORKDIR = "./tmp"
-INPUT_FILE = "all_configs.txt"
+INPUT_FILE = "sub.txt"
 OUTPUT_FILE = "ping.txt"
 
 SOCKS_PORT_BASE = 20000
