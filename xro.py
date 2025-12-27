@@ -15,7 +15,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
 
 ################################
-# 原 xr.py 的全局参数（保留）
+# 参数
 ################################
 
 XRAY_BIN = os.environ.get("XRAY_BIN", "./xray/xray")
@@ -26,10 +26,6 @@ OUTPUT_FILE = "ping.txt"
 SOCKS_PORT_BASE = 20000
 TIMEOUT = 6
 MAX_WORKERS = 10
-
-################################
-# 升级版测试目标
-################################
 
 TCP_TEST_HOSTS = [
     ("1.1.1.1", 443),
@@ -45,11 +41,11 @@ HTTP_TEST_URLS = [
 ]
 
 ################################
-# 工具（原结构 + 加强）
+# 工具
 ################################
 
 def log(msg):
-    print(f"[{time.strftime('%H:%M:%S')}] {msg}")
+    print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 def clean_tmp():
     if os.path.exists(WORKDIR):
@@ -66,7 +62,7 @@ def port_free(port):
         return False
 
 ################################
-# 节点解析（= 原版 + 修正）
+# 节点解析
 ################################
 
 def parse_node(line):
@@ -125,11 +121,15 @@ def parse_node(line):
         data["_raw"] = raw
         return data
 
-    except Exception:
-        return None
+    except Exception as e:
+        return {
+            "_type": "parse_error",
+            "_raw": raw,
+            "_err": str(e)
+        }
 
 ################################
-# Xray 配置（沿用你原来的方式）
+# Xray 配置
 ################################
 
 def build_xray_config(n, port):
@@ -204,7 +204,7 @@ def build_xray_config(n, port):
     }
 
 ################################
-# 测试（核心升级点）
+# 测试核心（可观测）
 ################################
 
 def tcp_test(host, port):
@@ -214,51 +214,57 @@ def tcp_test(host, port):
     except:
         return False
 
-def http_test(port):
-    proxies = {
-        "http": f"socks5h://127.0.0.1:{port}",
-        "https": f"socks5h://127.0.0.1:{port}",
-    }
-    for url in random.sample(HTTP_TEST_URLS, 2):
-        try:
-            r = requests.get(url, proxies=proxies, timeout=TIMEOUT)
-            if r.status_code in (200, 204):
-                return True
-        except:
-            pass
-    return False
-
 def test_node(n, idx):
     port = SOCKS_PORT_BASE + idx
-    if not port_free(port):
-        return False
 
-    cfg = build_xray_config(n, port)
+    if n.get("_type") == "parse_error":
+        return False, f"parse_error {n.get('_err')}"
+
+    if not port_free(port):
+        return False, "port_busy"
+
     cfg_file = f"{WORKDIR}/{idx}.json"
-    json.dump(cfg, open(cfg_file, "w"))
+    json.dump(build_xray_config(n, port), open(cfg_file, "w"))
 
     p = subprocess.Popen(
         [XRAY_BIN, "-c", cfg_file],
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL
+        stderr=subprocess.PIPE,
+        text=True
     )
 
     time.sleep(1.5)
 
-    tcp_ok = any(
-        tcp_test(h, p)
-        for h, p in random.sample(TCP_TEST_HOSTS, 2)
-    )
+    if p.poll() is not None:
+        err = p.stderr.read()
+        return False, f"xray_exit {err[:200]}"
 
-    http_ok = http_test(port) if tcp_ok else False
+    tcp_targets = random.sample(TCP_TEST_HOSTS, 2)
+    tcp_results = [(h, pt, tcp_test(h, pt)) for h, pt in tcp_targets]
+
+    if not any(x[2] for x in tcp_results):
+        p.terminate()
+        return False, f"tcp_failed {tcp_results}"
+
+    proxies = {
+        "http": f"socks5h://127.0.0.1:{port}",
+        "https": f"socks5h://127.0.0.1:{port}",
+    }
+
+    for url in random.sample(HTTP_TEST_URLS, 2):
+        try:
+            r = requests.get(url, proxies=proxies, timeout=TIMEOUT)
+            if r.status_code in (200, 204):
+                p.terminate()
+                return True, "ok"
+        except Exception as e:
+            last_err = str(e)
 
     p.terminate()
-    p.wait(timeout=2)
-
-    return tcp_ok and http_ok
+    return False, f"http_failed {last_err}"
 
 ################################
-# 主入口（原风格）
+# 主入口
 ################################
 
 def main():
@@ -271,30 +277,31 @@ def main():
             if n:
                 nodes.append(n)
 
-    ok = []
+    ok_nodes = []
 
     with ThreadPoolExecutor(MAX_WORKERS) as ex:
-        tasks = {
+        futures = {
             ex.submit(test_node, n, i): n
             for i, n in enumerate(nodes)
         }
 
-        for f in as_completed(tasks):
-            n = tasks[f]
+        for f in as_completed(futures):
+            n = futures[f]
             try:
-                if f.result():
-                    ok.append(n["_raw"])
+                res, reason = f.result()
+                if res:
+                    ok_nodes.append(n["_raw"])
                     log(f"OK  {n['_type']}")
                 else:
-                    log(f"BAD {n['_type']}")
-            except:
-                pass
+                    log(f"BAD {n['_type']} -> {reason}")
+            except Exception as e:
+                log(f"ERROR {e}")
 
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
-        for line in ok:
-            f.write(line + "\n")
+        for x in ok_nodes:
+            f.write(x + "\n")
 
-    log(f"完成：可用 {len(ok)}")
+    log(f"完成：可用 {len(ok_nodes)}")
 
 if __name__ == "__main__":
     main()
