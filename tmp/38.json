@@ -1,1 +1,1 @@
-{"inbounds": [{"listen": "127.0.0.1", "port": 20038, "protocol": "socks"}], "outbounds": [{"protocol": "trojan", "settings": {"servers": [{"address": "58.152.46.60", "port": 443, "password": "BxceQaOe"}]}}]}
+{"inbounds": [{"listen": "127.0.0.1", "port": 20038, "protocol": "socks"}], "outbounds": [{"protocol": "vless", "settings": {"vnext": [{"address": "8.217.36.203", "port": 443, "users": [{"id": "5c183802-747d-4d2f-a6f1-aff2d5d78401", "flow": "", "encryption": "none"}]}]}, "streamSettings": {"security": "reality", "tlsSettings": {"serverName": "j.6sc.co"}}}]}

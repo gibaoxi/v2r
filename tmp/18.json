@@ -1,1 +1,1 @@
-{"inbounds": [{"listen": "127.0.0.1", "port": 20018, "protocol": "socks"}], "outbounds": [{"protocol": "vmess", "settings": {"vnext": [{"address": "v30.heduian.link", "port": 30830, "users": [{"id": "cbb3f877-d1fb-344c-87a9-d153bffd5484", "alterId": 2, "security": "auto"}]}]}}]}
+{"inbounds": [{"listen": "127.0.0.1", "port": 20018, "protocol": "socks"}], "outbounds": [{"protocol": "trojan", "settings": {"servers": [{"address": "127.0.0.1", "port": 2080, "password": "pkfubwp5-yqnd-lyv9-qlka-s7d1xz5wzs0s"}]}}]}

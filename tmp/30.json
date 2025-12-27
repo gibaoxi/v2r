@@ -1,1 +1,1 @@
-{"inbounds": [{"listen": "127.0.0.1", "port": 20030, "protocol": "socks"}], "outbounds": [{"protocol": "trojan", "settings": {"servers": [{"address": "36.156.102.115", "port": 26876, "password": "BxceQaOe"}]}}]}
+{"inbounds": [{"listen": "127.0.0.1", "port": 20030, "protocol": "socks"}], "outbounds": [{"protocol": "trojan", "settings": {"servers": [{"address": "127.0.0.1", "port": 8080, "password": "orjm390d-xyx0-ueet-yn30-b6mmdl7mri1m"}]}}]}

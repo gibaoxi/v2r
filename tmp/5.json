@@ -1,1 +1,1 @@
-{"inbounds": [{"listen": "127.0.0.1", "port": 20005, "protocol": "socks"}], "outbounds": [{"protocol": "trojan", "settings": {"servers": [{"address": "tuntro005.instconn.com", "port": 443, "password": "eaab9bb7-e3bc-4f61-8b23-9f82720f3cb7"}]}}]}
+{"inbounds": [{"listen": "127.0.0.1", "port": 20005, "protocol": "socks"}], "outbounds": [{"protocol": "trojan", "settings": {"servers": [{"address": "official.taipeicitygovernment.co.ua", "port": 8443, "password": "96983eb4-c8f1-316e-ab00-500014ed3d8b"}]}}]}
