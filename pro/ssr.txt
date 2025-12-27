@@ -3,4 +3,3 @@
 #subscription-userinfo: upload=29; download=12; total=10737418240000000; expire=2546249531
 #support-url: https://github.com/liMilCo/V2ray-config
 #profile-web-page-url: https://github.com/liMilCo/V2ray-config
-ssr://MTUwLjEwNy40Ni4yMTo4MDgzOnNoYWRvd3NvY2tzcjphZXMtMjU2LWNmYjp0bHMxLjJfdGlja2V0X2F1dGg6YVVaeGJucFRjMk5PLz9yZW1hcmtzPVNFc2c4Si1IcmZDZmg3QWc0cFNISUZOVFVpMVVRMUF0VGxSTVV5QXRJRk4xYm01NVZtbHphVzl1SUV4cGJXbDBaV1FnNHBTSElERTFNQzR4TURjdU5EWXVNakU
