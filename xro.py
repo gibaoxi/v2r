@@ -71,6 +71,8 @@ def robust_tcp_test(host, port, retries=2):
         except socket.timeout:
             if attempt == retries - 1:
                 return False, "连接超时"
+        except ConnectionRefusedError:
+            return False, "连接被拒绝"
         except Exception as e:
             if attempt == retries - 1:
                 return False, f"连接错误: {e}"
@@ -100,25 +102,84 @@ def http_test_via_socks(port, test_count=2):
     
     return False, 0
 
-# ================== 节点解析器（修复版） ==================
+def validate_xray_config(node):
+    """验证Xray配置的完整性"""
+    required_fields = {
+        "ss": ["host", "port", "method", "password"],
+        "vmess": ["host", "port", "uuid"],
+        "vless": ["host", "port", "uuid"], 
+        "trojan": ["host", "port", "password"]
+    }
+    
+    proto = node["_type"]
+    if proto not in required_fields:
+        return False, f"未知协议类型: {proto}"
+    
+    for field in required_fields[proto]:
+        if field not in node or not node[field]:
+            return False, f"缺少必要字段: {field}"
+    
+    # 特殊验证
+    if proto == "vmess" and "id" not in node and "uuid" not in node:
+        return False, "VMess缺少UUID"
+    
+    # VMess配置冲突验证
+    if proto == "vmess":
+        net_type = node.get("net", node.get("type", "tcp"))
+        path = node.get("path", "")
+        
+        # TCP协议不应有path参数
+        if net_type == "tcp" and path:
+            return False, "TCP协议不应包含path参数"
+        
+        # WebSocket协议需要path参数
+        if net_type == "ws" and not path:
+            return False, "WebSocket协议需要path参数"
+    
+    return True, "配置验证通过"
+
+def classify_error(reason, node):
+    """更精确的错误分类"""
+    reason_lower = reason.lower()
+    
+    if "xray" in reason_lower or "配置" in reason_lower:
+        config_ok, config_msg = validate_xray_config(node)
+        if not config_ok:
+            return f"配置错误: {config_msg}"
+        return "Xray进程启动失败"
+    
+    elif "connection refused" in reason_lower or "连接被拒绝" in reason_lower or "errno 111" in reason_lower:
+        return "服务器拒绝连接（端口可能关闭）"
+    
+    elif "connection timeout" in reason_lower or "连接超时" in reason_lower:
+        return "连接超时（服务器无响应）"
+    
+    elif "http" in reason_lower and "failed" in reason_lower:
+        return "HTTP代理失败（TCP通但应用层失败）"
+    
+    elif "dns" in reason_lower:
+        return "DNS解析失败"
+    
+    else:
+        return reason
+
+# ================== 节点解析器（增强版） ==================
 class NodeParser:
-    """统一节点解析器（修复SS解析问题）"""
+    """统一节点解析器（增强错误处理）"""
     
     @staticmethod
     def parse_ss(uri):
-        """解析SS协议（修复分割错误）"""
+        """解析SS协议"""
         try:
             if "#" in uri:
                 uri = uri.split("#", 1)[0]
             
             # 处理SIP002格式
             if "@" in uri:
-                # 格式: ss://base64@host:port
                 parts = uri[5:].split("@", 1)
                 if len(parts) != 2:
                     return None
                 
-                # 尝试解码base64部分
                 try:
                     decoded = base64.b64decode(parts[0] + "===").decode('utf-8')
                     if ":" in decoded:
@@ -130,7 +191,6 @@ class NodeParser:
                 
                 server_part = parts[1]
             else:
-                # 旧格式: ss://base64
                 try:
                     decoded = base64.b64decode(uri[5:] + "===").decode('utf-8')
                     if "@" in decoded:
@@ -141,7 +201,6 @@ class NodeParser:
                 except:
                     return None
             
-            # 分割服务器和端口
             if ":" in server_part:
                 host, port = server_part.rsplit(":", 1)
             else:
@@ -162,27 +221,41 @@ class NodeParser:
     
     @staticmethod
     def parse_vmess(uri):
-        """解析VMess协议"""
+        """解析VMess协议（增强版，自动修正配置冲突）"""
         try:
-            # 解码Base64
             decoded_json = base64.b64decode(uri[8:] + "===").decode('utf-8')
             config = json.loads(decoded_json)
             
-            # 构建节点配置
             node = {
                 "_type": "vmess",
-                "host": config["add"],
-                "port": int(config["port"]),
-                "uuid": config["id"],
+                "host": config.get("add", ""),
+                "port": int(config.get("port", 0)),
+                "uuid": config.get("id", ""),
                 "aid": int(config.get("aid", 0)),
                 "_raw": uri
             }
             
-            # 添加可选字段
-            optional_fields = ["net", "type", "tls", "sni", "path", "host", "alpn", "fp", "scy"]
-            for field in optional_fields:
-                if field in config and config[field]:
-                    node[field] = config[field]
+            # 验证必要字段
+            if not node["host"] or not node["port"] or not node["uuid"]:
+                return None
+            
+            # 处理网络类型和路径冲突
+            net_type = config.get("net", "tcp")
+            path = config.get("path", "")
+            
+            # 自动修正：TCP协议不应该有path
+            if net_type == "tcp" and path:
+                log(f"⚠️ VMess配置修正: TCP协议移除非法的path参数: {path}", "WARN")
+                # 设置修正后的配置
+                node["net"] = net_type
+                node["type"] = config.get("type", "none")
+                # 不设置path字段，避免配置冲突
+            else:
+                # 正常设置所有字段
+                optional_fields = ["net", "type", "tls", "sni", "path", "host", "alpn", "fp", "scy"]
+                for field in optional_fields:
+                    if field in config and config[field]:
+                        node[field] = config[field]
             
             # 处理网络类型别名
             if "net" in node and not node.get("type"):
@@ -196,7 +269,7 @@ class NodeParser:
     
     @staticmethod
     def parse_vless(uri):
-        """解析VLESS协议（支持REALITY）"""
+        """解析VLESS协议"""
         try:
             parsed = urlparse(uri)
             if '@' not in parsed.netloc:
@@ -209,7 +282,6 @@ class NodeParser:
                 host = hostport
                 port = "443"
             
-            # 解析查询参数
             query_params = parse_qs(parsed.query)
             params = {}
             for key, value in query_params.items():
@@ -224,7 +296,6 @@ class NodeParser:
                 "_raw": uri
             }
             
-            # 添加所有查询参数
             node.update(params)
             return node
             
@@ -247,7 +318,6 @@ class NodeParser:
                 host = hostport
                 port = "443"
             
-            # 解析查询参数
             query_params = parse_qs(parsed.query)
             params = {}
             for key, value in query_params.items():
@@ -262,7 +332,6 @@ class NodeParser:
                 "_raw": uri
             }
             
-            # 添加所有查询参数
             node.update(params)
             return node
             
@@ -272,12 +341,11 @@ class NodeParser:
     
     @staticmethod
     def parse_node(raw_line):
-        """统一解析入口（只处理支持的协议）"""
+        """统一解析入口"""
         raw_line = raw_line.strip()
         if not raw_line:
             return None
         
-        # 现在这里只会收到支持的协议
         if raw_line.startswith("ss://"):
             return NodeParser.parse_ss(raw_line)
         elif raw_line.startswith("vmess://"):
@@ -287,43 +355,51 @@ class NodeParser:
         elif raw_line.startswith("trojan://"):
             return NodeParser.parse_trojan(raw_line)
         
-        # 理论上不会走到这里，因为前面已经筛选过了
         return None
 
-# ================== Xray配置生成器 ==================
+# ================== Xray配置生成器（增强版） ==================
 class XrayConfigGenerator:
-    """生成Xray配置（支持所有协议和传输）"""
+    """生成Xray配置（处理配置冲突）"""
     
     @staticmethod
     def get_stream_settings(node):
-        """根据节点类型生成streamSettings"""
+        """根据节点类型生成streamSettings（处理配置冲突）"""
+        net_type = node.get("net", node.get("type", "tcp"))
+        security = node.get("tls", node.get("security", "none"))
+        
         base_settings = {
-            "network": node.get("type", "tcp"),
-            "security": node.get("security", node.get("tls", "none")),
+            "network": net_type,
+            "security": security,
         }
         
-        # TCP设置
-        if base_settings["network"] == "tcp":
+        # 根据网络类型设置相应的参数（避免配置冲突）
+        if net_type == "tcp":
             base_settings["tcpSettings"] = {
                 "header": {
-                    "type": "none"
+                    "type": node.get("type", "none")
                 }
             }
-        
-        # WebSocket设置
-        elif base_settings["network"] == "ws":
+            # TCP协议不设置path，即使节点配置中有path参数
+            
+        elif net_type == "ws":
             ws_headers = {}
             host_header = node.get("host") or node.get("sni") or node.get("host", "")
             if host_header:
                 ws_headers["Host"] = host_header
             
             base_settings["wsSettings"] = {
-                "path": node.get("path", "/"),
+                "path": node.get("path", "/"),  # WebSocket需要path
                 "headers": ws_headers
             }
         
+        elif net_type == "http":
+            base_settings["httpSettings"] = {
+                "host": [node.get("host") or node.get("sni") or node.get("host", "")],
+                "path": node.get("path", "/")  # HTTP/2需要path
+            }
+        
         # REALITY配置
-        if base_settings["security"] == "reality":
+        if security == "reality":
             base_settings["realitySettings"] = {
                 "show": False,
                 "fingerprint": node.get("fp", "firefox"),
@@ -334,7 +410,7 @@ class XrayConfigGenerator:
             }
         
         # TLS配置
-        elif base_settings["security"] == "tls":
+        elif security == "tls":
             tls_settings = {
                 "serverName": node.get("sni") or node.get("host") or node.get("host", ""),
             }
@@ -464,7 +540,7 @@ class XrayConfigGenerator:
             }
         }
 
-# ================== 节点测试器（修复版） ==================
+# ================== 节点测试器（增强版） ==================
 class NodeTester:
     """节点测试管理器"""
     
@@ -491,14 +567,19 @@ class NodeTester:
                 pass
     
     def test_single_node(self, node, index):
-        """测试单个节点"""
-        # REALITY协议：只测TCP，不启动Xray
+        """测试单个节点（增强错误处理）"""
+        # 先验证配置
+        config_ok, config_msg = validate_xray_config(node)
+        if not config_ok:
+            return False, config_msg
+        
+        # REALITY协议：只测TCP
         if node.get("security") == "reality":
             tcp_ok, tcp_reason = robust_tcp_test(node["host"], node["port"])
             if tcp_ok:
                 return True, "TCP连接通过"
             else:
-                return False, tcp_reason
+                return False, classify_error(tcp_reason, node)
         
         # 其他协议：完整测试流程
         socks_port = SOCKS_BASE + index
@@ -513,11 +594,11 @@ class NodeTester:
             
             self.temp_files.append(config_path)
             
-            # 启动Xray
+            # 启动Xray（捕获错误输出）
             process = subprocess.Popen(
                 [XRAY_BIN, "run", "-config", config_path],
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
                 preexec_fn=os.setsid
             )
             
@@ -526,12 +607,14 @@ class NodeTester:
             
             # 检查进程是否存活
             if process.poll() is not None:
-                return False, "Xray进程启动失败"
+                _, stderr = process.communicate()
+                error_msg = stderr.decode('utf-8', errors='ignore') if stderr else "未知错误"
+                return False, f"Xray启动失败: {error_msg[:100]}"
             
-            # 进行TCP连接测试
+            # TCP连接测试
             tcp_ok, tcp_reason = robust_tcp_test(node["host"], node["port"])
             if not tcp_ok:
-                return False, tcp_reason
+                return False, classify_error(tcp_reason, node)
             
             # HTTP测试
             http_ok, latency = http_test_via_socks(socks_port)
@@ -543,7 +626,6 @@ class NodeTester:
         except Exception as e:
             return False, f"测试异常: {str(e)}"
         finally:
-            # 清理进程（如果不是REALITY协议）
             if node.get("security") != "reality":
                 if process and process.poll() is None:
                     try:
@@ -558,7 +640,6 @@ class NodeTester:
                 if process and process.pid in self.active_processes:
                     del self.active_processes[process.pid]
             
-            # 清理临时文件
             try:
                 if os.path.exists(config_path):
                     os.remove(config_path)
@@ -570,23 +651,18 @@ class NodeTester:
 # ================== 主程序 ==================
 def main():
     try:
-        # 初始化检查
         initialize()
         
-        # 支持的协议列表
-        supported_protocols = ["ss://", "vmess://", "vless://", "trojan://"]
-        
         # 读取订阅文件并进行协议筛选
+        supported_protocols = ["ss://", "vmess://", "vless://", "trojan://"]
         raw_lines = []
+        
         with open(SUB_FILE, 'r', encoding='utf-8', errors='ignore') as f:
             for line in f:
                 parts = line.strip().split()
                 for part in parts:
-                    # 检查是否以支持的协议开头
-                    is_supported = any(part.startswith(proto) for proto in supported_protocols)
-                    if is_supported:
+                    if any(part.startswith(proto) for proto in supported_protocols):
                         raw_lines.append(part)
-                    # 不支持的协议直接跳过，不记录日志
         
         if not raw_lines:
             log("订阅文件中没有找到支持的协议节点", "ERROR")
@@ -636,25 +712,17 @@ def main():
                                 if node.get('type') and node.get('type') != 'tcp':
                                     protocol_info += f"+{node['type'].upper()}"
                                 
-                                log(f"✅ [{idx:3d}] {protocol_info:20} | {reason}", "SUCCESS")
+                                # 解析延迟信息
+                                if 'ms' in reason:
+                                    latency = reason.split(' ')[-1].replace('ms', '')
+                                    log(f"✅ [{idx:3d}] {protocol_info:20} | 延迟: {latency}ms", "SUCCESS")
+                                else:
+                                    log(f"✅ [{idx:3d}] {protocol_info:20} | {reason}", "SUCCESS")
                                 good_nodes.append(node["_raw"])
                             else:
                                 # 详细错误分类
-                                error_detail = ""
-                                if "tcp_failed" in reason or "TCP连接失败" in reason:
-                                    error_detail = "TCP连接失败"
-                                elif "http_failed" in reason or "HTTP代理失败" in reason:
-                                    error_detail = "HTTP代理失败" 
-                                elif "xray进程启动失败" in reason or "Xray进程启动失败" in reason:
-                                    error_detail = "Xray配置错误"
-                                elif "DNS解析失败" in reason:
-                                    error_detail = "域名解析失败"
-                                elif "连接超时" in reason:
-                                    error_detail = "连接超时"
-                                else:
-                                    error_detail = reason
-                                    
-                                log(f"❌ [{idx:3d}] {node['_type']:20} | 失败: {error_detail}", "ERROR")
+                                error_detail = classify_error(reason, node)
+                                log(f"❌ [{idx:3d}] {node['_type']:20} | {error_detail}", "ERROR")
                                 bad_nodes.append(f"{node['_raw']}  # {error_detail}")
                             
                             completed += 1
@@ -665,8 +733,9 @@ def main():
                                 
                     except Exception as e:
                         with lock:
-                            log(f"❌ [{idx:3d}] 测试异常: {e}", "ERROR")
-                            bad_nodes.append(f"{node['_raw']}  # exception")
+                            error_detail = f"测试异常: {str(e)}"
+                            log(f"❌ [{idx:3d}] {node['_type']:20} | {error_detail}", "ERROR")
+                            bad_nodes.append(f"{node['_raw']}  # {error_detail}")
                             completed += 1
             
             # 保存结果
@@ -676,9 +745,64 @@ def main():
             with open(BAD_FILE, 'w', encoding='utf-8') as f:
                 f.write("\n".join(bad_nodes))
             
-            # 输出统计信息
-            success_rate = (len(good_nodes) / len(nodes)) * 100
-            log(f"🎯 测试完成! 可用: {len(good_nodes)}/{len(nodes)} 成功率: {success_rate:.1f}%", "SUCCESS")
+            # 输出详细统计信息
+            success_rate = (len(good_nodes) / len(nodes)) * 100 if nodes else 0
+            
+            # 按协议分类统计
+            protocol_stats = {}
+            for node in nodes:
+                proto = node['_type']
+                if proto not in protocol_stats:
+                    protocol_stats[proto] = {'total': 0, 'success': 0}
+                protocol_stats[proto]['total'] += 1
+            
+            for good_raw in good_nodes:
+                # 从原始链接判断协议类型
+                if good_raw.startswith('ss://'):
+                    proto = 'ss'
+                elif good_raw.startswith('vmess://'):
+                    proto = 'vmess'
+                elif good_raw.startswith('vless://'):
+                    proto = 'vless'
+                elif good_raw.startswith('trojan://'):
+                    proto = 'trojan'
+                else:
+                    continue
+                
+                if proto in protocol_stats:
+                    protocol_stats[proto]['success'] += 1
+            
+            log(f"🎯 测试完成!", "SUCCESS")
+            log(f"📊 总体统计:", "INFO")
+            log(f"   ✅ 可用节点: {len(good_nodes)}个", "SUCCESS")
+            log(f"   ❌ 失败节点: {len(bad_nodes)}个", "ERROR")
+            log(f"   📈 成功率: {success_rate:.1f}%", "INFO")
+            
+# 继续补充主程序
+            # 协议分布统计
+            if protocol_stats:
+                log(f"📋 协议分布统计:", "INFO")
+                for proto, stats in protocol_stats.items():
+                    total = stats['total']
+                    success = stats['success']
+                    rate = (success / total) * 100 if total > 0 else 0
+                    status_icon = "✅" if rate > 50 else "⚠️" if rate > 20 else "❌"
+                    log(f"   {status_icon} {proto:8}: {success}/{total} ({rate:.1f}%)", "INFO")
+            
+            # 错误类型统计
+            error_stats = {}
+            for bad_line in bad_nodes:
+                if "#" in bad_line:
+                    error_type = bad_line.split("#")[1].strip()
+                    if error_type not in error_stats:
+                        error_stats[error_type] = 0
+                    error_stats[error_type] += 1
+            
+            if error_stats:
+                log(f"🔍 错误类型分析:", "INFO")
+                for error_type, count in error_stats.items():
+                    log(f"   ⚠️ {error_type}: {count}个", "WARN")
+            
             log(f"📁 结果已保存: {GOOD_FILE}, {BAD_FILE}", "INFO")
             
         finally:
