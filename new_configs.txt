@@ -3,3 +3,27 @@
 #subscription-userinfo: upload=29; download=12; total=10737418240000000; expire=2546249531
 #support-url: https://github.com/liMilCo/v2r
 #profile-web-page-url: https://limilco.github.io/v2r/
+trojan://1pwye2zm-ptb1-zroy-q7ug-n1sn3xhc0gw9@127.0.0.1:8080?security=tls&type=tcp#For enhanced GitHub access, visit Argh94 now!
+trojan://e2lh7snv-yzev-m8dk-7638-vnrrokbzqgj6@127.0.0.1:1080?security=tls&type=tcp#🕒 LAST UPDATE: 2025/12/27 | 05:38
+trojan://un1n7b44-5jrl-jy64-d8s8-ihv708tcvbck@127.0.0.1:2080?security=tls&type=tcp#This is a free trial project.
+vless://f228db24-3602-4dd2-bdec-2d7faa61e70b@195.78.49.158:4443?type=tcp&security=reality#JP 🇯🇵 ┇ VLESS-TCP-RLT - MIRhosting B.V. ┇ 195.78.49.158
+trojan://d9bcz85h-ey01-7rud-guy5-ssoxuyi8af26@127.0.0.1:8081?security=tls&type=tcp#</> Collector v5.0
+trojan://4vmzefdp-jtsb-4eed-i4w0-qrfvkavo3x8h@127.0.0.1:4080?security=tls&type=tcp#「 GitHub Argh94 ☕ 」
+trojan://91uamli1-hf5d-r2c7-enli-9t8rbofkbhzm@127.0.0.1:8080?security=tls&type=tcp#For enhanced GitHub access, visit Argh94 now!
+vless://f3dc78d2-a8cb-3f6e-bebd-b223dfa91691@s587.okgfwbackxyz.xyz:443?type=tcp&security=tls&sni=u720947u097cs587.okgfwbackxyz.xyz&fp=random&flow=xtls-rprx-vision#SG 🇸🇬 ┇ VLESS-TCP-TLS - Alibaba US Technology Co., Ltd. ┇ 8.219.192.8
+vless://f3dc78d2-a8cb-3f6e-bebd-b223dfa91691@s591.okgfwbackxyz.xyz:443?type=tcp&security=tls&sni=u720947ubd8fs591.okgfwbackxyz.xyz&fp=random&flow=xtls-rprx-vision#JP 🇯🇵 ┇ VLESS-TCP-TLS - Alibaba US Technology Co., Ltd. ┇ 8.216.5.51
+trojan://9w9nzhep-3man-t3a1-k1aq-yhhdthqa9thc@127.0.0.1:8081?security=tls&type=tcp#</> Collector v5.0
+ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTpBUmd2R1p5d0ErZ2FjZ0dWMjZCdm11MDUrd1ptUlcvaitBZFUrWjhCdDQ0PQ@38.247.64.176:990#SG 🇸🇬 ┇ SHADOWSOCKS-TCP-NTLS - Ultahost, Inc. ┇ 38.247.64.176
+vless://2c487d9d-25a1-4b79-aed1-086b8c3082ca@178.239.124.30:56482?type=tcp&security=reality&sni=cloudcircus.jp&fp=chrome&flow=xtls-rprx-vision&pbk=W9BjX6YmCIVsjhKMlz233Yoe0xcf0SVHfvPKqbf3vCg#JP 🇯🇵 ┇ VLESS-TCP-RLT - BAGE ┇ 178.239.124.30
+trojan://thvwz98q-xwdw-jieg-p4l2-1vzff7b1yyly@127.0.0.1:8081?security=tls&type=tcp#</> Collector v5.0
+vless://f3dc78d2-a8cb-3f6e-bebd-b223dfa91691@s605.okgfwbackxyz.xyz:443?type=tcp&security=tls&sni=u720947u3d35s605.okgfwbackxyz.xyz&fp=random&flow=xtls-rprx-vision#KR 🇰🇷 ┇ VLESS-TCP-TLS - Alibaba US Technology Co., Ltd. ┇ 47.80.1.18
+trojan://zcfdpvnh-dxg2-65bx-1ddo-0xnydek88iy1@127.0.0.1:2080?security=tls&type=tcp#This is a free trial project.
+trojan://2mk7o47y-1hb7-88t1-2m1i-h6k3uf7jpu61@127.0.0.1:4080?security=tls&type=tcp#「 GitHub Argh94 ☕ 」
+trojan://6i42kbru-8i7l-2ovr-l6mr-cdcf9pp4zcvi@127.0.0.1:2080?security=tls&type=tcp#This is a free trial project.
+trojan://0508fluk-co94-3tws-971t-31iz16ytj7j9@127.0.0.1:1080?security=tls&type=tcp#🕒 LAST UPDATE: 2025/12/27 | 05:38
+trojan://tz0p8nq3-mg9y-23pj-v9fb-j0z7qfpc94g1@127.0.0.1:8080?security=tls&type=tcp#For enhanced GitHub access, visit Argh94 now!
+vless://a4cb890e-8251-488e-9439-3403c9a58e55@free-server.techsonic.cloud:443?type=tcp&security=tls#SG 🇸🇬 ┇ VLESS-TCP-TLS - Akamai Connected Cloud ┇ 172.104.160.218
+vless://bfb7355f-da10-470c-99d2-16c5061c403a@152.42.185.230:23675?type=tcp&security=none#SG 🇸🇬 ┇ VLESS-TCP-NTLS - DIGITALOCEAN-ASN ┇ 152.42.185.230
+trojan://loifxtbl-holg-4ddl-xwwo-avpneah80fh0@127.0.0.1:4080?security=tls&type=tcp#「 GitHub Argh94 ☕ 」
+trojan://cd36ay2i-8i4g-uj76-miuu-l63ikqu5sbm5@127.0.0.1:1080?security=tls&type=tcp#🕒 LAST UPDATE: 2025/12/27 | 05:38
+vless://ebd8539d-e249-4a39-8f90-e8585e8cc35e@116.80.44.144:27724?type=tcp&security=reality&sni=www.yahoo.co.jp&fp=chrome&flow=xtls-rprx-vision&pbk=rYH4wPTVzSwtpXgI3U7YxppIP6oudD-425vT7pyhj1w#JP 🇯🇵 ┇ VLESS-TCP-RLT - NTT PC Communications, Inc. ┇ 116.80.44.144
