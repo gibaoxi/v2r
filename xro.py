@@ -242,7 +242,7 @@ class NodeParser:
                 
             password, hostport = parsed.netloc.split('@', 1)
             if ':' in hostport:
-                host, port = hostport.rsplit(':", 1)
+                host, port = hostport.rsplit(':', 1)
             else:
                 host = hostport
                 port = "443"
