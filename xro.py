@@ -271,18 +271,13 @@ class NodeParser:
             return None
     
     @staticmethod
-    def parse_hy2(uri):
-        """解析Hysteria2协议（占位，暂不支持）"""
-        log(f"Hysteria2协议暂不支持: {uri[:30]}...", "WARN")
-        return None
-    
-    @staticmethod
     def parse_node(raw_line):
-        """统一解析入口"""
+        """统一解析入口（只处理支持的协议）"""
         raw_line = raw_line.strip()
         if not raw_line:
             return None
         
+        # 现在这里只会收到支持的协议
         if raw_line.startswith("ss://"):
             return NodeParser.parse_ss(raw_line)
         elif raw_line.startswith("vmess://"):
@@ -291,10 +286,8 @@ class NodeParser:
             return NodeParser.parse_vless(raw_line)
         elif raw_line.startswith("trojan://"):
             return NodeParser.parse_trojan(raw_line)
-        elif raw_line.startswith("hy2://") or raw_line.startswith("hysteria2://"):
-            return NodeParser.parse_hy2(raw_line)
         
-        log(f"未知协议: {raw_line[:30]}...", "WARN")
+        # 理论上不会走到这里，因为前面已经筛选过了
         return None
 
 # ================== Xray配置生成器 ==================
@@ -388,6 +381,7 @@ class XrayConfigGenerator:
             }
         
         elif node["_type"] == "vmess":
+            # 用户认证配置
             user_config = {
                 "id": node["uuid"],
                 "alterId": node.get("aid", 0),
@@ -502,7 +496,7 @@ class NodeTester:
         if node.get("security") == "reality":
             tcp_ok, tcp_reason = robust_tcp_test(node["host"], node["port"])
             if tcp_ok:
-                return True, "reality_tcp_ok"
+                return True, "TCP连接通过"
             else:
                 return False, tcp_reason
         
@@ -532,7 +526,7 @@ class NodeTester:
             
             # 检查进程是否存活
             if process.poll() is not None:
-                return False, "xray进程启动失败"
+                return False, "Xray进程启动失败"
             
             # 进行TCP连接测试
             tcp_ok, tcp_reason = robust_tcp_test(node["host"], node["port"])
@@ -542,12 +536,12 @@ class NodeTester:
             # HTTP测试
             http_ok, latency = http_test_via_socks(socks_port)
             if http_ok:
-                return True, f"http_ok({latency}ms)"
+                return True, f"HTTP延迟: {latency}ms"
             else:
-                return False, "http_failed"
+                return False, "HTTP代理失败"
                 
         except Exception as e:
-            return False, f"test_error: {str(e)}"
+            return False, f"测试异常: {str(e)}"
         finally:
             # 清理进程（如果不是REALITY协议）
             if node.get("security") != "reality":
@@ -572,18 +566,31 @@ class NodeTester:
                         self.temp_files.remove(config_path)
             except:
                 pass
-# ================== 主程序（续）==================
+
+# ================== 主程序 ==================
 def main():
     try:
         # 初始化检查
         initialize()
         
-        # 读取订阅文件
+        # 支持的协议列表
+        supported_protocols = ["ss://", "vmess://", "vless://", "trojan://"]
+        
+        # 读取订阅文件并进行协议筛选
         raw_lines = []
         with open(SUB_FILE, 'r', encoding='utf-8', errors='ignore') as f:
             for line in f:
                 parts = line.strip().split()
-                raw_lines.extend(parts)
+                for part in parts:
+                    # 检查是否以支持的协议开头
+                    is_supported = any(part.startswith(proto) for proto in supported_protocols)
+                    if is_supported:
+                        raw_lines.append(part)
+                    # 不支持的协议直接跳过，不记录日志
+        
+        if not raw_lines:
+            log("订阅文件中没有找到支持的协议节点", "ERROR")
+            return
         
         # 解析节点
         nodes = []
@@ -629,19 +636,36 @@ def main():
                                 if node.get('type') and node.get('type') != 'tcp':
                                     protocol_info += f"+{node['type'].upper()}"
                                 
-                                log(f"✓ [{idx:3d}] {protocol_info:20} {reason}", "SUCCESS")
+                                log(f"✅ [{idx:3d}] {protocol_info:20} | {reason}", "SUCCESS")
                                 good_nodes.append(node["_raw"])
                             else:
-                                log(f"✗ [{idx:3d}] {node['_type']:20} {reason}", "ERROR")
-                                bad_nodes.append(f"{node['_raw']}  # {reason}")
+                                # 详细错误分类
+                                error_detail = ""
+                                if "tcp_failed" in reason or "TCP连接失败" in reason:
+                                    error_detail = "TCP连接失败"
+                                elif "http_failed" in reason or "HTTP代理失败" in reason:
+                                    error_detail = "HTTP代理失败" 
+                                elif "xray进程启动失败" in reason or "Xray进程启动失败" in reason:
+                                    error_detail = "Xray配置错误"
+                                elif "DNS解析失败" in reason:
+                                    error_detail = "域名解析失败"
+                                elif "连接超时" in reason:
+                                    error_detail = "连接超时"
+                                else:
+                                    error_detail = reason
+                                    
+                                log(f"❌ [{idx:3d}] {node['_type']:20} | 失败: {error_detail}", "ERROR")
+                                bad_nodes.append(f"{node['_raw']}  # {error_detail}")
                             
                             completed += 1
                             if completed % 10 == 0 or completed == len(nodes):
-                                log(f"测试进度: {completed}/{len(nodes)}", "INFO")
+                                current_success = len(good_nodes)
+                                current_rate = (current_success / completed) * 100
+                                log(f"📊 进度: {completed}/{len(nodes)} | 成功率: {current_rate:.1f}% | 可用: {current_success}", "INFO")
                                 
                     except Exception as e:
                         with lock:
-                            log(f"✗ [{idx:3d}] 测试异常: {e}", "ERROR")
+                            log(f"❌ [{idx:3d}] 测试异常: {e}", "ERROR")
                             bad_nodes.append(f"{node['_raw']}  # exception")
                             completed += 1
             
@@ -653,9 +677,9 @@ def main():
                 f.write("\n".join(bad_nodes))
             
             # 输出统计信息
-            success_rate = (len(good_nodes) / len(nodes)) * 100 if nodes else 0
-            log(f"测试完成! 可用: {len(good_nodes)}/{len(nodes)} 成功率: {success_rate:.1f}%", "SUCCESS")
-            log(f"结果已保存: {GOOD_FILE}, {BAD_FILE}", "INFO")
+            success_rate = (len(good_nodes) / len(nodes)) * 100
+            log(f"🎯 测试完成! 可用: {len(good_nodes)}/{len(nodes)} 成功率: {success_rate:.1f}%", "SUCCESS")
+            log(f"📁 结果已保存: {GOOD_FILE}, {BAD_FILE}", "INFO")
             
         finally:
             tester.cleanup()
