@@ -15,7 +15,7 @@ from urllib.parse import urlparse, parse_qs, unquote
 
 # ================== 配置常量 ==================
 XRAY_BIN = "./xray/xray"
-SUB_FILE = "sub.txt"
+SUB_FILE = "all_configs.txt"
 GOOD_FILE = "ping.txt"
 BAD_FILE = "bad.txt"
 
