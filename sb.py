@@ -749,7 +749,6 @@ class SingboxConfigGenerator:
                 "security": node.get("scy", "auto")
             }
             
-            # 处理传输设置
             net_type = node.get("net", "tcp")
             if net_type == "ws":
                 outbound["transport"] = {
@@ -773,7 +772,6 @@ class SingboxConfigGenerator:
                     "path": node.get("path", "/")
                 }
             
-            # 处理TLS
             if node.get("tls") == "tls":
                 outbound["tls"] = {
                     "enabled": True,
@@ -791,7 +789,6 @@ class SingboxConfigGenerator:
                 "flow": node.get("flow", "")
             }
             
-            # 处理传输设置
             net_type = node.get("type", "tcp")
             if net_type == "ws":
                 outbound["transport"] = {
@@ -815,14 +812,12 @@ class SingboxConfigGenerator:
             else:
                 outbound["transport"] = {"type": "tcp"}
             
-            # 处理TLS
             if node.get("security") == "tls" or node.get("tls"):
                 outbound["tls"] = {
                     "enabled": True,
                     "server_name": node.get("sni") or node.get("host", "")
                 }
             
-            # 处理REALITY
             if node.get("security") == "reality":
                 outbound["tls"] = {
                     "enabled": True,
@@ -844,7 +839,654 @@ class SingboxConfigGenerator:
                 "password": node["password"]
             }
             
-            # 处理传输设置
             net_type = node.get("type", "tcp")
             if net_type == "ws":
-         
+                outbound["transport"] = {
+                    "type": "ws",
+                    "path": node.get("path", "/"),
+                    "headers": {
+                        "Host": node.get("host") or node.get("sni", "")
+                    }
+                }
+            elif net_type == "grpc":
+                outbound["transport"] = {
+                    "type": "grpc",
+                    "service_name": node.get("path", "")
+                }
+            else:
+                outbound["transport"] = {"type": "tcp"}
+            
+            if node.get("security") == "tls" or node.get("tls"):
+                outbound["tls"] = {
+                    "enabled": True,
+                    "server_name": node.get("sni") or node.get("host", "")
+                }
+            
+            return outbound
+        
+        elif protocol == "hysteria":
+            outbound = {
+                "type": "hysteria",
+                "server": f"{node['host']}:{node['port']}",
+                "up_mbps": node.get("up_mbps", 100),
+                "down_mbps": node.get("down_mbps", 100),
+            }
+            
+            if "auth" in node:
+                outbound["auth"] = node["auth"]
+            elif "auth_str" in node:
+                outbound["auth_str"] = node["auth_str"]
+            
+            tls_config = {"enabled": True}
+            if "sni" in node:
+                tls_config["server_name"] = node["sni"]
+            if "insecure" in node:
+                tls_config["insecure"] = node["insecure"]
+            if "alpn" in node:
+                alpn_value = node["alpn"]
+                if isinstance(alpn_value, str):
+                    tls_config["alpn"] = [alpn_value]
+                else:
+                    tls_config["alpn"] = alpn_value
+            
+            outbound["tls"] = tls_config
+            
+            if "obfs" in node:
+                outbound["obfs"] = node["obfs"]
+                if "obfs_password" in node:
+                    outbound["obfs_password"] = node["obfs_password"]
+            
+            return outbound
+        
+        elif protocol == "hysteria2":
+            outbound = {
+                "type": "hysteria2",
+                "server": f"{node['host']}:{node['port']}",
+                "server_port": node["port"]
+            }
+            
+            if "password" in node:
+                outbound["password"] = node["password"]
+            elif "auth" in node:
+                outbound["password"] = node["auth"]
+            
+            if "up_mbps" in node:
+                outbound["up_mbps"] = node["up_mbps"]
+            if "down_mbps" in node:
+                outbound["down_mbps"] = node["down_mbps"]
+            
+            tls_config = {"enabled": True}
+            if "sni" in node:
+                tls_config["server_name"] = node["sni"]
+            elif "host" in node:
+                tls_config["server_name"] = node["host"]
+            
+            if "insecure" in node:
+                tls_config["insecure"] = bool(node["insecure"])
+            
+            if "alpn            }
+            
+            net_type = node.get("type", "tcp")
+            if net_type == "ws":
+                outbound["transport"] = {
+                    "type": "ws",
+                    "path": node.get("path", "/"),
+                    "headers": {
+                        "Host": node.get("host") or node.get("sni", "")
+                    }
+                }
+            elif net_type == "grpc":
+                outbound["transport"] = {
+                    "type": "grpc",
+                    "service_name": node.get("path", "")
+                }
+            elif net_type == "h2":
+                outbound["transport"] = {
+                    "type": "http",
+                    "host": [node.get("host") or node.get("sni", "")],
+                    "path": node.get("path", "/")
+                }
+            else:
+                outbound["transport"] = {"type": "tcp"}
+            
+            if node.get("security") == "tls" or node.get("tls"):
+                outbound["tls"] = {
+                    "enabled": True,
+                    "server_name": node.get("sni") or node.get("host", "")
+                }
+            
+            if node.get("security") == "reality":
+                outbound["tls"] = {
+                    "enabled": True,
+                    "server_name": node.get("sni", ""),
+                    "reality": {
+                        "enabled": True,
+                        "public_key": node.get("pbk", ""),
+                        "short_id": node.get("sid", "")
+                    }
+                }
+            
+            return outbound
+        
+        elif protocol == "trojan":
+            outbound = {
+                "type": "trojan",
+                "server": node["host"],
+                "server_port": node["port"],
+                "password": node["password"]
+            }
+            
+            net_type = node.get("type", "tcp")
+            if net_type == "ws":
+                outbound["transport"] = {
+                    "type": "ws",
+                    "path": node.get("path", "/"),
+                    "headers": {
+                        "Host": node.get("host") or node.get("sni", "")
+                    }
+                }
+            elif net_type == "grpc":
+                outbound["transport"] = {
+                    "type": "grpc",
+                    "service_name": node.get("path", "")
+                }
+            else:
+                outbound["transport"] = {"type": "tcp"}
+            
+            if node.get("security") == "tls" or node.get("tls"):
+                outbound["tls"] = {
+                    "enabled": True,
+                    "server_name": node.get("sni") or node.get("host", "")
+                }
+            
+            return outbound
+        
+        elif protocol == "hysteria":
+            outbound = {
+                "type": "hysteria",
+                "server": f"{node['host']}:{node['port']}",
+                "up_mbps": node.get("up_mbps", 100),
+                "down_mbps": node.get("down_mbps", 100),
+            }
+            
+            if "auth" in node:
+                outbound["auth"] = node["auth"]
+            elif "auth_str" in node:
+                outbound["auth_str"] = node["auth_str"]
+            
+            tls_config = {"enabled": True}
+            if "sni" in node:
+                tls_config["server_name"] = node["sni"]
+            if "insecure" in node:
+                tls_config["insecure"] = node["insecure"]
+            if "alpn" in node:
+                alpn_value = node["alpn"]
+                if isinstance(alpn_value, str):
+                    tls_config["alpn"] = [alpn_value]
+                else:
+                    tls_config["alpn"] = alpn_value
+            
+            outbound["tls"] = tls_config
+            
+            if "obfs" in node:
+                outbound["obfs"] = node["obfs"]
+                if "obfs_password" in node:
+                    outbound["obfs_password"] = node["obfs_password"]
+            
+            return outbound
+        
+        elif protocol == "hysteria2":
+            outbound = {
+                "type": "hysteria2",
+                "server": f"{node['host']}:{node['port']}",
+                "server_port": node["port"]
+            }
+            
+            if "password" in node:
+                outbound["password"] = node["password"]
+            elif "auth" in node:
+                outbound["password"] = node["auth"]
+            
+            if "up_mbps" in node:
+                outbound["up_mbps"] = node["up_mbps"]
+            if "down_mbps" in node:
+                outbound["down_mbps"] = node["down_mbps"]
+            
+            tls_config = {"enabled": True}
+            if "sni" in node:
+                tls_config["server_name"] = node["sni"]
+            elif "host" in node:
+                tls_config["server_name"] = node["host"]
+            
+            if "insecure" in node:
+                tls_config["insecure"] = bool(node["insecure"])
+            
+            if "alpn" in node:
+                alpn_value = node["alpn"]
+                if isinstance(alpn_value, str):
+                    tls_config["alpn"] = [alpn_value]
+                else:
+                    tls_config["alpn"] = alpn_value
+            
+            outbound["tls"] = tls_config
+            
+            if "obfs" in node:
+                obfs_config = {"type": node["obfs"]}
+                if "obfs_password" in node:
+                    obfs_config["password"] = node["obfs_password"]
+                outbound["obfs"] = obfs_config
+            
+            if "pin" in node:
+                outbound["pin"] = node["pin"]
+            
+            return outbound
+        
+        elif protocol == "tuic":
+            outbound = {
+                "type": "tuic",
+                "server": node["host"],
+                "server_port": node["port"],
+                "uuid": node["uuid"],
+                "password": node["password"]
+            }
+            
+            if "sni" in node:
+                outbound["tls"] = {
+                    "enabled": True,
+                    "server_name": node["sni"]
+                }
+            
+            return outbound
+        
+        elif protocol == "wireguard":
+            outbound = {
+                "type": "wireguard",
+                "server": node["server"],
+                "server_port": node["server_port"],
+                "private_key": node["private_key"],
+                "mtu": node.get("mtu", 1408)
+            }
+            
+            if "peer_public_key" in node:
+                outbound["peer_public_key"] = node["peer_public_key"]
+            else:
+                raise ValueError("WireGuard配置缺少peer_public_key")
+            
+            local_address = node["local_address"]
+            if isinstance(local_address, str):
+                outbound["local_address"] = [local_address]
+            else:
+                outbound["local_address"] = local_address
+            
+            if "preshared_key" in node and node["preshared_key"]:
+                outbound["preshared_key"] = node["preshared_key"]
+            if "reserved" in node:
+                outbound["reserved"] = node["reserved"]
+            if "dns" in node:
+                outbound["dns"] = node["dns"]
+            if "workers" in node:
+                outbound["workers"] = node["workers"]
+            
+            return outbound
+        
+        elif protocol == "http":
+            outbound = {
+                "type": "http",
+                "server": node["host"],
+                "server_port": node["port"]
+            }
+            
+            if "username" in node and "password" in node:
+                outbound["username"] = node["username"]
+                outbound["password"] = node["password"]
+            
+            if node.get("scheme") == "https" or node.get("tls"):
+                tls_config = {"enabled": True}
+                
+                if "sni" in node:
+                    tls_config["server_name"] = node["sni"]
+                elif "host" in node:
+                    tls_config["server_name"] = node["host"]
+                
+                if "insecure" in node:
+                    tls_config["insecure"] = bool(node["insecure"])
+                
+                outbound["tls"] = tls_config
+            
+            return outbound
+        
+        else:
+            raise ValueError(f"不支持的协议类型: {protocol}")
+    
+    @staticmethod
+    def generate_config(node, local_port):
+        """生成完整的Singbox配置"""
+        return {
+            "log": {
+                "level": "warn"
+            },
+            "inbounds": [
+                {
+                    "type": "socks",
+                    "tag": "socks-in",
+                    "listen": "127.0.0.1",
+                    "listen_port": local_port,
+                    "sniff": True
+                }
+            ],
+            "outbounds": [
+                SingboxConfigGenerator.generate_outbound(node),
+                {
+                    "type": "direct",
+                    "tag": "direct"
+                }
+            ],
+            "route": {
+                "rules": [
+                    {
+                        "inbound": ["socks-in"],
+                        "outbound": "proxy"
+                    }
+                ]
+            }
+        }
+
+# ================== 节点测试器 ==================
+class NodeTester:
+    """节点测试管理器"""
+    
+    def __init__(self):
+        self.active_processes = {}
+        self.temp_files = []
+    
+    def cleanup(self):
+        """清理资源"""
+        for pid, process in self.active_processes.items():
+            try:
+                process.terminate()
+                process.wait(timeout=3)
+            except:
+                try:
+                    process.kill()
+                except:
+                    pass
+        
+        for temp_file in self.temp_files:
+            try:
+                os.remove(temp_file)
+            except:
+                pass
+    
+    def test_single_node(self, node, index):
+        """测试单个节点"""
+        # 先验证配置
+        config_ok, config_msg = validate_singbox_config(node)
+        if not config_ok:
+            return False, config_msg
+        
+        # REALITY协议：只测TCP，不启动Singbox
+        if node.get("security") == "reality":
+            tcp_ok, tcp_reason = robust_tcp_test(node["host"], node["port"])
+            if tcp_ok:
+                return True, "TCP连接通过"
+            else:
+                return False, classify_error(tcp_reason, node)
+        
+        # 其他协议：完整测试流程
+        socks_port = SOCKS_BASE + index
+        config_path = f"/tmp/singbox_test_{index}_{int(time.time())}.json"
+        process = None
+        
+        try:
+            # 生成配置
+            config = SingboxConfigGenerator.generate_config(node, socks_port)
+            with open(config_path, 'w') as f:
+                json.dump(config, f, indent=2)
+            
+            self.temp_files.append(config_path)
+            
+            # 启动Singbox
+            process = subprocess.Popen(
+                [SINGBOX_BIN, "run", "-c", config_path],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                preexec_fn=os.setsid
+            )
+            
+            self.active_processes[process.pid] = process
+            time.sleep(SINGBOX_START_DELAY)
+            
+            # 检查进程是否存活
+            if process.poll() is not None:
+                _, stderr = process.communicate()
+                error_msg = stderr.decode('utf-8', errors='ignore') if stderr else "未知错误"
+                return False, f"Singbox启动失败: {error_msg[:100]}"
+            
+            # 进行TCP连接测试
+            tcp_ok, tcp_reason = robust_tcp_test(node["host"], node["port"])
+            if not tcp_ok:
+                return False, classify_error(tcp_reason, node)
+            
+            # HTTP测试
+            http_ok, latency = http_test_via_socks(socks_port)
+            if http_ok:
+                return True, f"HTTP延迟: {latency}ms"
+            else:
+                return False, "HTTP代理失败"
+                
+        except Exception as e:
+            return False, f"测试异常: {str(e)}"
+        finally:
+            # 清理进程（如果不是REALITY协议）
+            if node.get("security") != "reality":
+                if process and process.poll() is None:
+                    try:
+                        os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+                        process.wait(timeout=2)
+                    except:
+                        try:
+                            process.kill()
+                        except:
+                            pass
+                
+                if process and process.pid in self.active_processes:
+                    del self.active_processes[process.pid]
+            
+            # 清理临时文件
+            try:
+                if os.path.exists(config_path):
+                    os.remove(config_path)
+                    if config_path in self.temp_files:
+                        self.temp_files.remove(config_path)
+            except:
+                pass
+
+# ================== 主程序 ==================
+def main():
+    try:
+        # 初始化检查
+        initialize()
+        
+        # 支持的协议列表
+        supported_protocols = [
+            "ss://", "ssr://", "vmess://", "vless://", "trojan://",
+            "hy2://", "hysteria2://", "hy://", "hysteria://", 
+            "tuic://", "wireguard://", "https://", "http://"
+        ]
+        
+        # 读取订阅文件并进行协议筛选
+        raw_lines = []
+        with open(SUB_FILE, 'r', encoding='utf-8', errors='ignore') as f:
+            for line in f:
+                parts = line.strip().split()
+                for part in parts:
+                    # 检查是否以支持的协议开头
+                    is_supported = any(part.startswith(proto) for proto in supported_protocols)
+                    if is_supported:
+                        raw_lines.append(part)
+                    # 不支持的协议直接跳过，不记录日志
+        
+        if not raw_lines:
+            log("订阅文件中没有找到支持的协议节点", "ERROR")
+            return
+        
+        # 解析节点
+        nodes = []
+        parser = NodeParser()
+        
+        for raw in raw_lines:
+            node = parser.parse_node(raw)
+            if node:
+                nodes.append(node)
+        
+        log(f"成功解析节点: {len(nodes)}个", "SUCCESS")
+        
+        if not nodes:
+            log("没有找到有效节点，请检查订阅文件格式", "ERROR")
+            return
+        
+        # 测试节点
+        tester = NodeTester()
+        good_nodes = []
+        bad_nodes = []
+        
+        try:
+            with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+                future_to_node = {
+                    executor.submit(tester.test_single_node, node, idx): (idx, node) 
+                    for idx, node in enumerate(nodes)
+                }
+                
+                completed = 0
+                for future in as_completed(future_to_node):
+                    idx, node = future_to_node[future]
+                    
+                    try:
+                        success, reason = future.result()
+                        with lock:
+                            if success:
+                                # 构建协议信息字符串
+                                protocol_info = node['_type']
+                                if node.get('security') == 'reality':
+                                    protocol_info += '+REALITY'
+                                elif node.get('security') == 'tls' or node.get('tls'):
+                                    protocol_info += '+TLS'
+                                if node.get('type') and node.get('type') != 'tcp':
+                                    protocol_info += f"+{node['type'].upper()}"
+                                
+                                # 解析延迟信息
+                                if 'ms' in reason:
+                                    latency = reason.split(' ')[-1].replace('ms', '')
+                                    log(f"✅ [{idx:3d}] {protocol_info:20} | 延迟: {latency}ms", "SUCCESS")
+                                else:
+                                    log(f"✅ [{idx:3d}] {protocol_info:20} | {reason}", "SUCCESS")
+                                good_nodes.append(node["_raw"])
+                            else:
+                                # 详细错误分类
+                                error_detail = classify_error(reason, node)
+                                log(f"❌ [{idx:3d}] {node['_type']:20} | {error_detail}", "ERROR")
+                                bad_nodes.append(f"{node['_raw']}  # {error_detail}")
+                            
+                            completed += 1
+                            if completed % 10 == 0 or completed == len(nodes):
+                                current_success = len(good_nodes)
+                                current_rate = (current_success / completed) * 100
+                                log(f"📊 进度: {completed}/{len(nodes)} | 成功率: {current_rate:.1f}% | 可用: {current_success}", "INFO")
+                                
+                    except Exception as e:
+                        with lock:
+                            error_detail = f"测试异常: {str(e)}"
+                            log(f"❌ [{idx:3d}] {node['_type']:20} | {error_detail}", "ERROR")
+                            bad_nodes.append(f"{node['_raw']}  # {error_detail}")
+                            completed += 1
+            
+            # 保存结果
+            with open(GOOD_FILE, 'w', encoding='utf-8') as f:
+                f.write("\n".join(good_nodes))
+            
+            with open(BAD_FILE, 'w', encoding='utf-8') as f:
+                f.write("\n".join(bad_nodes))
+            
+            # 输出统计信息
+            success_rate = (len(good_nodes) / len(nodes)) * 100 if nodes else 0
+            
+            # 按协议分类统计
+            protocol_stats = {}
+            for node in nodes:
+                proto = node['_type']
+                if proto not in protocol_stats:
+                    protocol_stats[proto] = {'total': 0, 'success': 0}
+                protocol_stats[proto]['total'] += 1
+            
+            for good_raw in good_nodes:
+                # 从原始链接判断协议类型
+                if good_raw.startswith('ss://'):
+                    proto = 'ss'
+                elif good_raw.startswith('vmess://'):
+                    proto = 'vmess'
+                elif good_raw.startswith('vless://'):
+                    proto = 'vless'
+                elif good_raw.startswith('trojan://'):
+                    proto = 'trojan'
+                elif good_raw.startswith('hy2://') or good_raw.startswith('hysteria2://'):
+                    proto = 'hysteria2'
+                elif good_raw.startswith('hy://') or good_raw.startswith('hysteria://'):
+                    proto = 'hysteria'
+                elif good_raw.startswith('tuic://'):
+                    proto = 'tuic'
+                elif good_raw.startswith('wireguard://'):
+                    proto = 'wireguard'
+                elif good_raw.startswith('https://') or good_raw.startswith('http://'):
+                    proto = 'http'
+                else:
+                    continue
+                
+                if proto in protocol_stats:
+                    protocol_stats[proto]['success'] += 1
+            
+            log(f"🎯 测试完成!", "SUCCESS")
+            log(f"📊 总体统计:", "INFO")
+            log(f"   ✅ 可用节点: {len(good_nodes)}个", "SUCCESS")
+            log(f"   ❌ 失败节点: {len(bad_nodes)}个", "ERROR")
+            log(f"   📈 成功率: {success_rate:.1f}%", "INFO")
+            
+            # 协议分布统计
+            if protocol_stats:
+                log(f"📋 协议分布统计:", "INFO")
+                for proto, stats in protocol_stats.items():
+                    total = stats['total']
+                    success = stats['success']
+                    rate = (success / total) * 100 if total > 0 else 0
+                    status_icon = "✅" if rate > 50 else "⚠️" if rate > 20 else "❌"
+                    log(f"   {status_icon} {proto:8}: {success}/{total} ({rate:.1f}%)", "INFO")
+            
+            # 错误类型统计
+            error_stats = {}
+            for bad_line in bad_nodes:
+                if "#" in bad_line:
+                    error_type = bad_line.split("#")[1].strip()
+                    if error_type not in error_stats:
+                        error_stats[error_type] = 0
+                    error_stats[error_type] += 1
+            
+            if error_stats:
+                log(f"🔍 错误类型分析:", "INFO")
+                for error_type, count in error_stats.items():
+                    log(f"   ⚠️ {error_type}: {count}个", "WARN")
+            
+            log(f"📁 结果已保存: {GOOD_FILE}, {BAD_FILE}", "INFO")
+            
+        finally:
+            tester.cleanup()
+            
+    except FileNotFoundError as e:
+        log(str(e), "ERROR")
+        sys.exit(1)
+    except KeyboardInterrupt:
+        log("用户中断测试", "WARN")
+    except Exception as e:
+        log(f"程序异常: {e}", "ERROR")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
