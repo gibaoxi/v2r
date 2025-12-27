@@ -1,0 +1,1 @@
+{"inbounds": [{"listen": "127.0.0.1", "port": 20044, "protocol": "socks"}], "outbounds": [{"protocol": "trojan", "settings": {"servers": [{"address": "127.0.0.1", "port": 1080, "password": "wcix9bv8-gmit-mojp-si8p-s63yos3m9dr8"}]}}]}

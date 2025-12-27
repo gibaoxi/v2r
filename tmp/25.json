@@ -1,0 +1,1 @@
+{"inbounds": [{"listen": "127.0.0.1", "port": 20025, "protocol": "socks"}], "outbounds": [{"protocol": "trojan", "settings": {"servers": [{"address": "official.taipeicitygovernment.co.ua", "port": 8443, "password": "96983eb4-c8f1-316e-ab00-500014ed3d8b"}]}}]}

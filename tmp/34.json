@@ -1,0 +1,1 @@
+{"inbounds": [{"listen": "127.0.0.1", "port": 20034, "protocol": "socks"}], "outbounds": [{"protocol": "trojan", "settings": {"servers": [{"address": "cdnfire.xiaomispeed.com", "port": 21102, "password": "e7cf36ad-c598-4866-85a4-ec5128ffe514"}]}}]}

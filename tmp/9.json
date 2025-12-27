@@ -1,0 +1,1 @@
+{"inbounds": [{"listen": "127.0.0.1", "port": 20009, "protocol": "socks"}], "outbounds": [{"protocol": "vless", "settings": {"vnext": [{"address": "43.99.250.221", "port": 443, "users": [{"id": "3e7f67de-648e-4871-b51a-a225214d41ee", "flow": "", "encryption": "none"}]}]}, "streamSettings": {"security": "reality", "tlsSettings": {"serverName": "www.primevideo.com"}}}]}
