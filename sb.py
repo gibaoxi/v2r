@@ -1,833 +1,850 @@
 #!/usr/bin/env python3
-import socket
-import time
-import json
-import subprocess
-import requests
-from urllib.parse import urlparse, parse_qs
-import base64
 import os
-import concurrent.futures
+import sys
+import json
+import time
+import base64
+import socket
+import signal
+import subprocess
 import threading
-import shutil
-import re
-import logging
-from typing import List, Dict, Any, Optional, Tuple
+import random
+import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from urllib.parse import urlparse, parse_qs, unquote
 
-# ========== 配置区域 ==========
-# 测试参数
-BATCH_SIZE = 2                    # 同时测试的最大节点数
-SERIAL_DOWNLOAD = True           # 串行下载测试（避免带宽竞争）
-MAX_TEST_TIME = 300              # 最大测试时间（秒）
+# ================== 配置常量 ==================
+SINGBOX_BIN = "./singbox/singbox"
+SUB_FILE = "all_configs.txt"
+GOOD_FILE = "ping.txt"
+BAD_FILE = "bad.txt"
 
-# 路径配置
-SINGBOX_BIN = "./sing-box/sing-box"
-CONFIG_DIR = "./temp_configs"
-SOCKS_PORT_START = 10808
-
-# 测试端点
-HTTP_TEST_URLS = [
-    
-    "https://github.com"
-]
-
-DOWNLOAD_URLS = [
-"https://cdn.cloudflare.steamstatic.com/steam/apps/256843155/movie_max.mp4"
-]
-
-# 超时设置
+MAX_WORKERS = 3
 TCP_TIMEOUT = 8
-HTTP_TIMEOUT = 12
-DOWNLOAD_TIMEOUT = 20
+HTTP_TIMEOUT = 10
+SOCKS_BASE = 30000
+SINGBOX_START_DELAY = 2
 
-# 日志配置
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('node_test.log'),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
+HTTP_TEST_URLS = [
+    "http://www.gstatic.com/generate_204",
+    "http://connectivitycheck.gstatic.com/generate_204",
+    "http://www.msftconnecttest.com/connecttest.txt",
+    "http://captive.apple.com/hotspot-detect.html",
+]
 
-# 创建临时目录
-os.makedirs(CONFIG_DIR, exist_ok=True)
+lock = threading.Lock()
 
-class NodeTester:
-    """Sing-box节点测试器"""
+# ================== 初始化检查 ==================
+def initialize():
+    """初始化检查和环境准备"""
+    if not os.path.exists(SINGBOX_BIN):
+        raise FileNotFoundError(f"Singbox 不存在: {SINGBOX_BIN}")
     
-    def __init__(self):
-        self.results = []
-        self.start_time = time.time()
-        
-    def check_singbox(self) -> bool:
-        """检查Sing-box是否可用"""
+    if not os.access(SINGBOX_BIN, os.X_OK):
+        os.chmod(SINGBOX_BIN, 0o755)
+        print(f"[INFO] 已添加执行权限: {SINGBOX_BIN}")
+    
+    if not os.path.exists(SUB_FILE):
+        raise FileNotFoundError(f"订阅文件不存在: {SUB_FILE}")
+    
+    print(f"[INFO] 环境检查通过: Singbox={SINGBOX_BIN}, Workers={MAX_WORKERS}")
+
+# ================== 日志工具 ==================
+def log(msg, level="INFO"):
+    """带颜色和时间的日志输出"""
+    colors = {"INFO": "\033[94m", "WARN": "\033[93m", "ERROR": "\033[91m", "SUCCESS": "\033[92m"}
+    reset = "\033[0m"
+    color = colors.get(level, "\033[94m")
+    print(f"{color}[{time.strftime('%H:%M:%S')}] {level}: {msg}{reset}", flush=True)
+
+# ================== 网络测试工具 ==================
+def robust_tcp_test(host, port, retries=2):
+    """健壮的TCP连接测试"""
+    for attempt in range(retries):
         try:
-            result = subprocess.run([SINGBOX_BIN, "version"], 
-                                  capture_output=True, text=True, check=True)
-            logger.info(f"✅ Sing-box版本: {result.stdout.strip()}")
-            return True
+            start_time = time.time()
+            with socket.create_connection((host, port), timeout=TCP_TIMEOUT):
+                latency = int((time.time() - start_time) * 1000)
+                return True, f"tcp_ok({latency}ms)"
+        except socket.gaierror as e:
+            return False, f"DNS解析失败: {e}"
+        except socket.timeout:
+            if attempt == retries - 1:
+                return False, "连接超时"
+        except ConnectionRefusedError:
+            return False, "连接被拒绝"
         except Exception as e:
-            logger.error(f"❌ Sing-box不可用: {e}")
-            return False
+            if attempt == retries - 1:
+                return False, f"连接错误: {e}"
+        time.sleep(0.5)
+    return False, "未知错误"
+
+def http_test_via_socks(port, test_count=2):
+    """通过SOCKS代理进行HTTP测试"""
+    proxies = {"http": f"socks5h://127.0.0.1:{port}", "https": f"socks5h://127.0.0.1:{port}"}
     
-    def parse_node(self, line: str) -> Optional[Dict[str, Any]]:
-        """解析节点链接"""
-        line = line.strip()
-        if not line:
-            return None
-            
+    for _ in range(test_count):
+        url = random.choice(HTTP_TEST_URLS)
         try:
-            if line.startswith("vless://"):
-                return self._parse_vless(line)
-            elif line.startswith("trojan://"):
-                return self._parse_trojan(line)
-            elif line.startswith("vmess://"):
-                return self._parse_vmess(line)
-            elif line.startswith("ss://"):
-                return self._parse_ss(line)
-            elif line.startswith("hysteria2://") or line.startswith("hy2://"):
-                return self._parse_hysteria2(line)
+            start_time = time.time()
+            response = requests.get(url, proxies=proxies, timeout=HTTP_TIMEOUT, 
+                                  headers={'User-Agent': 'Mozilla/5.0'})
+            latency = int((time.time() - start_time) * 1000)
+            
+            if response.status_code in (200, 204):
+                return True, latency
+        except requests.exceptions.ConnectTimeout:
+            continue
+        except requests.exceptions.ReadTimeout:
+            continue
+        except Exception:
+            continue
+    
+    return False, 0
+
+def validate_singbox_config(node):
+    """验证Singbox配置的完整性"""
+    required_fields = {
+        "ss": ["host", "port", "method", "password"],
+        "ssr": ["host", "port", "method", "password", "protocol", "obfs"],
+        "vmess": ["host", "port", "uuid"],
+        "vless": ["host", "port", "uuid"], 
+        "trojan": ["host", "port", "password"],
+        "hysteria": ["host", "port", "auth"],
+        "hysteria2": ["host", "port", "password"],
+        "tuic": ["host", "port", "uuid", "password"],
+        "wireguard": ["server", "server_port", "private_key", "peer_public_key", "local_address"],
+        "http": ["host", "port"]
+    }
+    
+    proto = node["_type"]
+    if proto not in required_fields:
+        return False, f"未知协议类型: {proto}"
+    
+    for field in required_fields[proto]:
+        if field not in node or not node[field]:
+            return False, f"缺少必要字段: {field}"
+    
+    # 特殊验证
+    if proto == "vmess" and "id" not in node and "uuid" not in node:
+        return False, "VMess缺少UUID"
+    
+    # VMess配置冲突验证
+    if proto == "vmess":
+        net_type = node.get("net", node.get("type", "tcp"))
+        path = node.get("path", "")
+        
+        # TCP协议不应有path参数
+        if net_type == "tcp" and path:
+            return False, "TCP协议不应包含path参数"
+        
+        # WebSocket协议需要path参数
+        if net_type == "ws" and not path:
+            return False, "WebSocket协议需要path参数"
+    
+    # HTTP代理特殊验证
+    if proto == "http":
+        if node.get("scheme") == "https" and not node.get("sni") and not node.get("host"):
+            return False, "HTTPS代理需要server_name"
+    
+    # WireGuard特殊验证
+    if proto == "wireguard":
+        # 检查local_address格式
+        local_address = node.get("local_address")
+        if local_address:
+            if isinstance(local_address, str):
+                addresses = [local_address]
             else:
-                logger.warning(f"未知协议: {line[:50]}...")
-                return None
-        except Exception as e:
-            logger.error(f"解析节点失败 {line[:30]}...: {e}")
-            return None
+                addresses = local_address
+            
+            for addr in addresses:
+                if not ('/' in addr and (':' in addr or '.' in addr)):
+                    return False, f"WireGuard local_address格式错误: {addr}"
     
-    def _parse_vless(self, line: str) -> Dict[str, Any]:
-        """解析VLESS链接"""
-        u = urlparse(line)
-        q = parse_qs(u.query)
-        
-        return {
-            "type": "vless",
-            "server": u.hostname,
-            "port": u.port or 443,
-            "uuid": u.username,
-            "network": q.get("type", ["tcp"])[0],
-            "security": q.get("security", [""])[0],
-            "sni": q.get("sni", [u.hostname])[0],
-            "host": q.get("host", [u.hostname])[0],
-            "path": q.get("path", [""])[0],
-            "publicKey": q.get("pbk", [""])[0],
-            "shortId": q.get("sid", [""])[0],
-        }
+    return True, "配置验证通过"
+
+def classify_error(reason, node):
+    """更精确的错误分类"""
+    reason_lower = reason.lower()
     
-    def _parse_trojan(self, line: str) -> Dict[str, Any]:
-        """解析Trojan链接"""
-        u = urlparse(line)
-        return {
-            "type": "trojan",
-            "server": u.hostname,
-            "port": u.port or 443,
-            "password": u.username,
-        }
+    if "singbox" in reason_lower or "配置" in reason_lower:
+        config_ok, config_msg = validate_singbox_config(node)
+        if not config_ok:
+            return f"配置错误: {config_msg}"
+        return "Singbox进程启动失败"
     
-    def _parse_vmess(self, line: str) -> Dict[str, Any]:
-        """解析VMess链接"""
+    elif "connection refused" in reason_lower or "连接被拒绝" in reason_lower or "errno 111" in reason_lower:
+        return "服务器拒绝连接（端口可能关闭）"
+    
+    elif "connection timeout" in reason_lower or "连接超时" in reason_lower:
+        return "连接超时（服务器无响应）"
+    
+    elif "http" in reason_lower and "failed" in reason_lower:
+        return "HTTP代理失败（TCP通但应用层失败）"
+    
+    elif "dns" in reason_lower:
+        return "DNS解析失败"
+    
+    else:
+        return reason
+
+# ================== 节点解析器 ==================
+class NodeParser:
+    """统一节点解析器（支持所有协议）"""
+    
+    @staticmethod
+    def parse_ss(uri):
+        """解析SS协议"""
         try:
-            # 移除vmess://前缀并解码
-            data = base64.b64decode(line[8:] + "==").decode('utf-8')
-            j = json.loads(data)
+            if "#" in uri:
+                uri = uri.split("#", 1)[0]
             
-            return {
-                "type": "vmess",
-                "server": j["add"],
-                "port": int(j["port"]),
-                "uuid": j["id"],
-                "network": j.get("net", "tcp"),
-                "host": j.get("host", ""),
-                "path": j.get("path", ""),
-                "tls": j.get("tls", "")
-            }
-        except Exception as e:
-            logger.error(f"VMess解析失败: {e}")
-            return None
-    
-    def _parse_ss(self, line: str) -> Dict[str, Any]:
-        """解析Shadowsocks链接"""
-        # 移除注释
-        clean_line = line.split('#')[0]
-        
-        # 提取Base64部分
-        if '@' not in clean_line[5:]:
-            # 整个链接是Base64编码的
-            try:
-                base64_part = clean_line[5:]
-                padding = (4 - len(base64_part) % 4) % 4
-                decoded = base64.b64decode(base64_part + '=' * padding).decode('utf-8')
-                clean_line = "ss://" + decoded
-            except:
-                return None
-        
-        # 解析标准格式
-        try:
-            method_password, server_part = clean_line[5:].split('@', 1)
-            
-            # 解码方法和密码
-            if ':' not in method_password:
-                return None
-            method, password = method_password.split(':', 1)
-            
-            # 解析服务器和端口
-            server_part = server_part.split('/')[0]  # 移除路径
-            if ':' not in server_part:
-                return None
+            # 处理SIP002格式
+            if "@" in uri:
+                parts = uri[5:].split("@", 1)
+                if len(parts) != 2:
+                    return None
                 
-            server, port_str = server_part.rsplit(':', 1)
-            port = int(port_str)
+                try:
+                    decoded = base64.b64decode(parts[0] + "===").decode('utf-8')
+                    if ":" in decoded:
+                        method, password = decoded.split(":", 1)
+                    else:
+                        return None
+                except:
+                    return None
+                
+                server_part = parts[1]
+            else:
+                try:
+                    decoded = base64.b64decode(uri[5:] + "===").decode('utf-8')
+                    if "@" in decoded:
+                        method_password, server_part = decoded.split("@", 1)
+                        method, password = method_password.split(":", 1)
+                    else:
+                        return None
+                except:
+                    return None
+            
+            if ":" in server_part:
+                host, port = server_part.rsplit(":", 1)
+            else:
+                return None
             
             return {
-                "type": "ss",
-                "server": server,
+                "_type": "ss",
+                "host": host.strip(),
+                "port": int(port),
+                "method": method.strip(),
+                "password": password.strip(),
+                "_raw": uri
+            }
+            
+        except Exception as e:
+            log(f"SS解析失败: {uri[:30]}... -> {e}", "ERROR")
+            return None
+    
+    @staticmethod
+    def parse_ssr(uri):
+        """解析SSR协议"""
+        try:
+            if "#" in uri:
+                uri = uri.split("#", 1)[0]
+            
+            encoded = uri[6:]
+            padding = 4 - len(encoded) % 4
+            if padding != 4:
+                encoded += "=" * padding
+            
+            decoded = base64.b64decode(encoded).decode('utf-8', errors='ignore')
+            
+            if "?" in decoded:
+                main_part, param_part = decoded.split("?", 1)
+            else:
+                main_part, param_part = decoded, ""
+            
+            parts = main_part.split(":")
+            if len(parts) < 6:
+                return None
+            
+            host = parts[0]
+            port = int(parts[1])
+            protocol = parts[2]
+            method = parts[3]
+            obfs = parts[4]
+            
+            password_encoded = parts[5]
+            try:
+                password = base64.b64decode(password_encoded + "===").decode('utf-8')
+            except:
+                password = password_encoded
+            
+            params = {}
+            if param_part:
+                for param in param_part.split("&"):
+                    if "=" in param:
+                        key, value = param.split("=", 1)
+                        params[key] = unquote(value)
+            
+            node = {
+                "_type": "ssr",
+                "host": host,
                 "port": port,
                 "method": method,
-                "password": password
+                "password": password,
+                "protocol": protocol,
+                "obfs": obfs,
+                "_raw": uri
             }
+            
+            if "obfsparam" in params:
+                node["obfs_param"] = params["obfsparam"]
+            if "protoparam" in params:
+                node["protocol_param"] = params["protoparam"]
+            if "remarks" in params:
+                node["remarks"] = params["remarks"]
+            if "group" in params:
+                node["group"] = params["group"]
+            
+            return node
+            
         except Exception as e:
-            logger.error(f"SS解析失败: {e}")
+            log(f"SSR解析失败: {uri[:30]}... -> {e}", "ERROR")
             return None
     
-    def _parse_hysteria2(self, line: str) -> Dict[str, Any]:
-        """解析Hysteria2链接"""
+    @staticmethod
+    def parse_hysteria(uri):
+        """解析Hysteria协议"""
         try:
-            # 移除协议头
-            clean_line = line.replace('hysteria2://', '').replace('hy2://', '')
-            clean_line = clean_line.split('#')[0]  # 移除注释
+            if "#" in uri:
+                uri = uri.split("#", 1)[0]
             
-            if '@' not in clean_line:
-                return None
-                
-            uuid, server_part = clean_line.split('@', 1)
-            if ':' not in server_part:
-                return None
-                
-            server, port = server_part.split(':', 1)
+            parsed = urlparse(uri)
+            host = parsed.hostname
+            port = parsed.port or 443
             
-            return {
-                "type": "hysteria2",
-                "server": server,
-                "port": int(port),
-                "uuid": uuid
-            }
-        except Exception as e:
-            logger.error(f"Hysteria2解析失败: {e}")
-            return None
-    
-    def tcp_test(self, host: str, port: int) -> Tuple[bool, int]:
-        """TCP连接测试"""
-        try:
-            start = time.time()
-            sock = socket.create_connection((host, port), timeout=TCP_TIMEOUT)
-            sock.close()
-            delay = int((time.time() - start) * 1000)
-            return True, delay
-        except Exception as e:
-            return False, -1
-    
-    def http_test(self, socks_port: int) -> Tuple[bool, int]:
-        """HTTP可访问性测试"""
-        proxies = {
-            "http": f"socks5h://127.0.0.1:{socks_port}",
-            "https": f"socks5h://127.0.0.1:{socks_port}"
-        }
-        
-        for url in HTTP_TEST_URLS:
-            try:
-                start_time = time.time()
-                response = requests.get(url, proxies=proxies, timeout=HTTP_TIMEOUT)
-                delay = int((time.time() - start_time) * 1000)
-                
-                if response.status_code in (200, 204):
-                    return True, delay
-            except:
-                continue
-                
-        return False, -1
-    
-    def speed_test(self, socks_port: int) -> Tuple[float, float]:
-        """下载速度测试"""
-        proxies = {
-            "http": f"socks5h://127.0.0.1:{socks_port}",
-            "https": f"socks5h://127.0.0.1:{socks_port}"
-        }
-        
-        for download_url in DOWNLOAD_URLS:
-            try:
-                start_time = time.time()
-                response = requests.get(download_url, proxies=proxies, 
-                                      stream=True, timeout=DOWNLOAD_TIMEOUT)
-                size = 0
-                download_start = time.time()
-                
-                for chunk in response.iter_content(8192):
-                    size += len(chunk)
-                    if size >= 1048576:  # 下载1MB后停止
-                        break
-                
-                download_time = time.time() - download_start
-                if download_time > 0:
-                    speed = (size * 8) / (download_time * 1024 * 1024)  # Mbps
-                    return round(speed, 2), round(download_time, 2)
-                    
-            except:
-                continue
-                
-        return 0.0, -1
-    
-    def generate_singbox_config(self, node: Dict[str, Any], socks_port: int) -> Dict[str, Any]:
-        """生成Sing-box配置"""
-        outbound = self._create_outbound(node)
-        
-        return {
-            "log": {
-                "level": "error",
-                "timestamp": True
-            },
-            "dns": {
-                "servers": [
-                    {"address": "tls://1.1.1.1"},
-                    {"address": "tls://8.8.8.8"}
-                ],
-                "strategy": "ipv4_first"
-            },
-            "inbounds": [
-                {
-                    "type": "socks",
-                    "tag": "socks-in",
-                    "listen": "127.0.0.1",
-                    "listen_port": socks_port,
-                    "sniff": True
-                }
-            ],
-            "outbounds": [
-                outbound,
-                {
-                    "type": "direct",
-                    "tag": "direct"
-                },
-                {
-                    "type": "block", 
-                    "tag": "block"
-                }
-            ],
-            "route": {
-                "rules": [
-                    {
-                        "protocol": "dns",
-                        "outbound": "direct"
-                    },
-                    {
-                        "network": "udp",
-                        "port": 53,
-                        "outbound": "direct"
-                    }
-                ],
-                "auto_detect_interface": True,
-                "final": "proxy"
-            }
-        }
-    
-    def _create_outbound(self, node: Dict[str, Any]) -> Dict[str, Any]:
-        """创建出站配置"""
-        node_type = node["type"]
-        
-        if node_type == "vless":
-            return self._create_vless_outbound(node)
-        elif node_type == "trojan":
-            return self._create_trojan_outbound(node)
-        elif node_type == "vmess":
-            return self._create_vmess_outbound(node)
-        elif node_type == "ss":
-            return self._create_ss_outbound(node)
-        elif node_type == "hysteria2":
-            return self._create_hysteria2_outbound(node)
-        else:
-            return {"type": "direct"}
-    
-    def _create_vless_outbound(self, node: Dict[str, Any]) -> Dict[str, Any]:
-        """创建VLESS出站配置"""
-        outbound = {
-            "type": "vless",
-            "server": node["server"],
-            "server_port": node["port"],
-            "uuid": node["uuid"],
-            "flow": ""
-        }
-        
-        # 传输设置
-        network = node.get("network", "tcp")
-        if network != "tcp":
-            outbound["transport"] = {"type": network}
-            if network == "ws":
-                outbound["transport"].update({
-                    "path": node.get("path", ""),
-                    "headers": {"Host": node.get("host", node["server"])}
-                })
-            elif network == "grpc":
-                outbound["transport"]["service_name"] = node.get("path", "")
-        
-        # 安全设置
-        security = node.get("security", "")
-        if security in ["tls", "reality"]:
-            outbound["tls"] = {
-                "enabled": True,
-                "server_name": node.get("sni", node["server"]),
-                "insecure": False
-            }
-            if security == "reality":
-                outbound["tls"]["reality"] = {
-                    "enabled": True,
-                    "public_key": node.get("publicKey", ""),
-                    "short_id": node.get("shortId", "")
-                }
-        
-        return outbound
-    
-    def _create_trojan_outbound(self, node: Dict[str, Any]) -> Dict[str, Any]:
-        """创建Trojan出站配置"""
-        return {
-            "type": "trojan",
-            "server": node["server"],
-            "server_port": node["port"],
-            "password": node["password"],
-            "tls": {
-                "enabled": True,
-                "server_name": node["server"],
-                "insecure": False
-            }
-        }
-    
-    def _create_vmess_outbound(self, node: Dict[str, Any]) -> Dict[str, Any]:
-        """创建VMess出站配置"""
-        outbound = {
-            "type": "vmess",
-            "server": node["server"],
-            "server_port": node["port"],
-            "uuid": node["uuid"],
-            "security": "auto"
-        }
-        
-        if node.get("tls") == "tls":
-            outbound["tls"] = {
-                "enabled": True,
-                "server_name": node["server"],
-                "insecure": False
-            }
-        
-        network = node.get("network", "tcp")
-        if network != "tcp":
-            outbound["transport"] = {"type": network}
-            if network == "ws":
-                outbound["transport"].update({
-                    "path": node.get("path", ""),
-                    "headers": {"Host": node.get("host", node["server"])}
-                })
-        
-        return outbound
-    
-    def _create_ss_outbound(self, node: Dict[str, Any]) -> Dict[str, Any]:
-        """创建Shadowsocks出站配置"""
-        return {
-            "type": "shadowsocks",
-            "server": node["server"],
-            "server_port": node["port"],
-            "method": node["method"],
-            "password": node["password"]
-        }
-    
-    def _create_hysteria2_outbound(self, node: Dict[str, Any]) -> Dict[str, Any]:
-        """创建Hysteria2出站配置"""
-        return {
-            "type": "hysteria2",
-            "server": node["server"],
-            "server_port": node["port"],
-            "password": node["uuid"],
-            "tls": {
-                "enabled": True,
-                "server_name": node["server"],
-                "insecure": False
-            }
-        }
-    
-    def run_singbox_instance(self, config_path: str, socks_port: int) -> Optional[subprocess.Popen]:
-        """运行Sing-box实例"""
-        try:
-            process = subprocess.Popen(
-                [SINGBOX_BIN, "run", "-c", config_path],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
-            )
-            time.sleep(3)  # 等待启动
-            return process
-        except Exception as e:
-            logger.error(f"启动Sing-box失败: {e}")
-            return None
-    
-    def stop_singbox_instance(self, process: subprocess.Popen):
-        """停止Sing-box实例"""
-        try:
-            process.terminate()
-            process.wait(timeout=5)
-        except:
-            try:
-                process.kill()
-            except:
-                pass
-    
-    def batch_tcp_test(self, nodes: List[Tuple[str, Dict[str, Any]]]) -> List[Dict[str, Any]]:
-        """批量TCP测试"""
-        logger.info(f"开始TCP测试 ({len(nodes)}个节点)...")
-        
-        def test_single(args):
-            i, (line, node) = args
-            if time.time() - self.start_time > MAX_TEST_TIME:
-                return None
-                
-            tcp_ok, tcp_ms = self.tcp_test(node["server"], node["port"])
-            result = {
-                "id": i,
-                "line": line,
-                "node": node,
-                "tcp_ok": tcp_ok,
-                "tcp_ms": tcp_ms
+            query_params = parse_qs(parsed.query)
+            params = {}
+            for key, value in query_params.items():
+                params[key] = unquote(value[0]) if value else ""
+            
+            node = {
+                "_type": "hysteria",
+                "host": host,
+                "port": port,
+                "_raw": uri
             }
             
-            if tcp_ok:
-                logger.info(f"✅ TCP成功: {node['server']}:{node['port']} ({tcp_ms}ms)")
-            else:
-                logger.info(f"❌ TCP失败: {node['server']}:{node['port']}")
-                
-            return result
-        
-        with concurrent.futures.ThreadPoolExecutor(max_workers=BATCH_SIZE) as executor:
-            results = list(executor.map(test_single, enumerate(nodes)))
-        
-        # 过滤None结果（超时情况）
-        results = [r for r in results if r is not None]
-        results.sort(key=lambda x: x["id"])
-        
-        success_count = sum(1 for r in results if r["tcp_ok"])
-        logger.info(f"TCP测试完成: {success_count}/{len(nodes)} 成功")
-        
-        return results
-    
-    def batch_http_test(self, tcp_results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """批量HTTP测试"""
-        http_nodes = [(r["line"], r["node"], r["id"]) for r in tcp_results if r["tcp_ok"]]
-        
-        if not http_nodes:
-            logger.warning("没有通过TCP测试的节点，跳过HTTP测试")
-            return []
-        
-        logger.info(f"开始HTTP测试 ({len(http_nodes)}个节点)...")
-        results = []
-        
-        # 分批测试
-        for i in range(0, len(http_nodes), BATCH_SIZE):
-            if time.time() - self.start_time > MAX_TEST_TIME:
-                break
-                
-            batch = http_nodes[i:i+BATCH_SIZE]
-            batch_results = self._test_http_batch(batch, i // BATCH_SIZE + 1)
-            results.extend(batch_results)
-        
-        results.sort(key=lambda x: x["id"])
-        success_count = sum(1 for r in results if r["http_ok"])
-        logger.info(f"HTTP测试完成: {success_count}/{len(http_nodes)} 成功")
-        
-        return results
-    
-    def _test_http_batch(self, batch: List[Tuple[str, Dict[str, Any], int]], batch_num: int) -> List[Dict[str, Any]]:
-        """测试一批HTTP节点"""
-        batch_results = []
-        processes = []
-        
-        try:
-            # 为每个节点准备配置和端口
-            tasks = []
-            for j, (line, node, node_id) in enumerate(batch):
-                socks_port = SOCKS_PORT_START + j
-                config_path = os.path.join(CONFIG_DIR, f"config_{node_id}.json")
-                
-                config = self.generate_singbox_config(node, socks_port)
-                with open(config_path, "w") as f:
-                    json.dump(config, f, indent=2)
-                
-                tasks.append((line, node, node_id, socks_port, config_path))
-            
-            # 启动所有Sing-box实例
-            for line, node, node_id, socks_port, config_path in tasks:
-                process = self.run_singbox_instance(config_path, socks_port)
-                if process:
-                    processes.append((process, config_path))
-                else:
-                    batch_results.append({
-                        "id": node_id, "line": line, "node": node,
-                        "http_ok": False, "http_ms": -1
-                    })
-            
-            time.sleep(2)  # 等待所有实例启动
-            
-            # 并行测试HTTP
-            with concurrent.futures.ThreadPoolExecutor(max_workers=len(tasks)) as executor:
-                future_to_task = {}
-                for line, node, node_id, socks_port, config_path in tasks:
-                    future = executor.submit(self.http_test, socks_port)
-                    future_to_task[future] = (line, node, node_id)
-                
-                for future in concurrent.futures.as_completed(future_to_task):
-                    line, node, node_id = future_to_task[future]
-                    http_ok, http_ms = future.result()
-                    
-                    result = {
-                        "id": node_id, "line": line, "node": node,
-                        "http_ok": http_ok, "http_ms": http_ms
-                    }
-                    batch_results.append(result)
-                    
-                    if http_ok:
-                        logger.info(f"✅ HTTP成功: {node['server']} ({http_ms}ms)")
-                    else:
-                        logger.info(f"❌ HTTP失败: {node['server']}")
-                        
-        finally:
-            # 清理进程
-            for process, config_path in processes:
-                self.stop_singbox_instance(process)
+            if "auth" in params:
+                node["auth"] = params["auth"]
+            if "peer" in params:
+                node["sni"] = params["peer"]
+            if "insecure" in params:
+                node["insecure"] = params["insecure"] == "1"
+            if "alpn" in params:
+                node["alpn"] = params["alpn"]
+            if "upmbps" in params:
                 try:
-                    os.remove(config_path)
+                    node["up_mbps"] = int(params["upmbps"])
+                except:
+                    node["up_mbps"] = 100
+            if "downmbps" in params:
+                try:
+                    node["down_mbps"] = int(params["downmbps"])
+                except:
+                    node["down_mbps"] = 100
+            if "obfs" in params:
+                node["obfs"] = params["obfs"]
+            if "protocol" in params:
+                node["protocol"] = params["protocol"]
+            
+            return node
+            
+        except Exception as e:
+            log(f"Hysteria解析失败: {uri[:30]}... -> {e}", "ERROR")
+            return None
+    
+    @staticmethod
+    def parse_hysteria2(uri):
+        """解析Hysteria2协议"""
+        try:
+            if "#" in uri:
+                uri = uri.split("#", 1)[0]
+            
+            parsed = urlparse(uri)
+            host = parsed.hostname
+            port = parsed.port or 443
+            
+            password = None
+            if parsed.username:
+                password = parsed.username
+            elif "@" in parsed.netloc:
+                password_part = parsed.netloc.split("@")[0]
+                try:
+                    password = base64.b64decode(password_part + "===").decode('utf-8')
+                except:
+                    password = password_part
+            
+            query_params = parse_qs(parsed.query)
+            params = {}
+            for key, value in query_params.items():
+                params[key] = unquote(value[0]) if value else ""
+            
+            node = {
+                "_type": "hysteria2",
+                "host": host,
+                "port": port,
+                "_raw": uri
+            }
+            
+            if password:
+                node["password"] = password
+            
+            if "sni" in params:
+                node["sni"] = params["sni"]
+            if "insecure" in params:
+                node["insecure"] = params["insecure"] == "1" or params["insecure"].lower() == "true"
+            if "alpn" in params:
+                node["alpn"] = params["alpn"]
+            if "obfs" in params:
+                node["obfs"] = params["obfs"]
+            if "obfs-password" in params:
+                node["obfs_password"] = params["obfs-password"]
+            if "up" in params:
+                try:
+                    node["up_mbps"] = int(params["up"])
                 except:
                     pass
-        
-        return batch_results
-    
-    def serial_download_test(self, tcp_results: List[Dict[str, Any]], 
-                           http_results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """串行下载测试"""
-        # 收集需要测试下载的节点
-        download_nodes = []
-        for tcp_result in tcp_results:
-            if tcp_result["tcp_ok"]:
-                http_info = next((hr for hr in http_results if hr["id"] == tcp_result["id"]), None)
-                if http_info:
-                    download_nodes.append((
-                        tcp_result["line"], tcp_result["node"], tcp_result["id"],
-                        http_info.get("http_ok", False)
-                    ))
-        
-        if not download_nodes:
-            logger.warning("没有需要下载测试的节点")
-            return []
-        
-        logger.info(f"开始下载测试 ({len(download_nodes)}个节点)...")
-        results = []
-        
-        for i, (line, node, node_id, http_ok) in enumerate(download_nodes):
-            if time.time() - self.start_time > MAX_TEST_TIME:
-                logger.warning("测试超时，停止下载测试")
-                break
-                
-            logger.info(f"下载测试进度: {i+1}/{len(download_nodes)} - {node['server']}")
-            
-            socks_port = SOCKS_PORT_START + i
-            config_path = os.path.join(CONFIG_DIR, f"download_{node_id}.json")
-            
-            try:
-                # 生成配置
-                config = self.generate_singbox_config(node, socks_port)
-                with open(config_path, "w") as f:
-                    json.dump(config, f, indent=2)
-                
-                # 启动Sing-box
-                process = self.run_singbox_instance(config_path, socks_port)
-                if not process:
-                    continue
-                
+            if "down" in params:
                 try:
-                    # 下载测试
-                    speed, download_time = self.speed_test(socks_port)
-                    
-                    if download_time > 0:
-                        result = {
-                            "id": node_id, "line": line, "node": node,
-                            "speed": speed, "download_time": download_time,
-                            "http_ok": http_ok
-                        }
-                        results.append(result)
-                        logger.info(f"✅ 下载成功: {node['server']} ({speed}Mbps, {download_time}s)")
-                    else:
-                        logger.info(f"❌ 下载失败: {node['server']}")
-                        
-                finally:
-                    self.stop_singbox_instance(process)
-                    try:
-                        os.remove(config_path)
-                    except:
-                        pass
-                        
-            except Exception as e:
-                logger.error(f"下载测试异常 {node['server']}: {e}")
-        
-        logger.info(f"下载测试完成: {len(results)}/{len(download_nodes)} 成功")
-        return results
-    
-    def save_results(self, all_results: List[Dict[str, Any]]):
-        """保存测试结果"""
-        # 保存到ping.txt（仅节点链接）
-        with open("ping.txt", "w", encoding="utf-8") as f:
-            for result in all_results:
-                f.write(result["line"] + "\n")
-        
-        # 保存详细结果
-        with open("detailed_results.txt", "w", encoding="utf-8") as f:
-            f.write("节点链接\tTCP延迟(ms)\tHTTP延迟(ms)\t速度(Mbps)\t下载时间(s)\t状态\n")
-            for result in all_results:
-                line = result["line"]
-                line += f"\t{result.get('tcp_ms', -1)}"
-                line += f"\t{result.get('http_ms', -1)}"
-                line += f"\t{result.get('speed', 0)}"
-                line += f"\t{result.get('download_time', -1)}"
-                line += f"\t{'✅' if result.get('http_ok', False) else '❌'}"
-                f.write(line + "\n")
-    
-    def run(self):
-        """运行完整测试流程"""
-        logger.info("🚀 开始Sing-box节点测试")
-        
-        # 检查Sing-box
-        if not self.check_singbox():
-            return
-        
-# 读取节点
-        try:
-            with open("sub.txt", "r", encoding="utf-8") as f:
-                lines = f.readlines()
-        except FileNotFoundError:
-            logger.error("❌ sub.txt 文件不存在")
-            return
-        except Exception as e:
-            logger.error(f"❌ 读取 sub.txt 失败: {e}")
-            return
-        
-        # 解析节点
-        nodes = []
-        for line_num, line in enumerate(lines):
-            line = line.strip()
-            if not line:
-                continue
-                
-            node = self.parse_node(line)
-            if node:
-                nodes.append((line, node))
-                logger.info(f"✅ 解析成功 [{line_num+1}/{len(lines)}]: {node['server']}:{node['port']} ({node['type']})")
-            else:
-                logger.warning(f"❌ 解析失败 [{line_num+1}/{len(lines)}]: {line[:50]}...")
-        
-        if not nodes:
-            logger.error("❌ 没有找到可用的节点")
-            return
-        
-        logger.info(f"📋 总共解析 {len(nodes)} 个节点")
-        
-        # 阶段1: 批量TCP测试
-        tcp_results = self.batch_tcp_test(nodes)
-        tcp_success = sum(1 for r in tcp_results if r["tcp_ok"])
-        logger.info(f"📊 TCP测试结果: {tcp_success}/{len(nodes)} 成功")
-        
-        # 阶段2: 批量HTTP测试
-        http_results = self.batch_http_test(tcp_results)
-        http_success = sum(1 for r in http_results if r["http_ok"])
-        logger.info(f"📊 HTTP测试结果: {http_success}/{len(tcp_results)} 成功")
-        
-        # 阶段3: 下载测试
-        download_results = self.serial_download_test(tcp_results, http_results)
-        download_success = len(download_results)
-        logger.info(f"📊 下载测试结果: {download_success}/{len(http_results)} 成功")
-        
-        # 合并结果
-        all_results = []
-        for download_result in download_results:
-            # 查找对应的TCP和HTTP结果
-            tcp_info = next((tr for tr in tcp_results if tr["id"] == download_result["id"]), {})
-            http_info = next((hr for hr in http_results if hr["id"] == download_result["id"]), {})
+                    node["down_mbps"] = int(params["down"])
+                except:
+                    pass
+            if "pin" in params:
+                node["pin"] = params["pin"]
             
-            result = {
-                "line": download_result["line"],
-                "node": download_result["node"],
-                "tcp_ms": tcp_info.get("tcp_ms", -1),
-                "http_ms": http_info.get("http_ms", -1),
-                "speed": download_result.get("speed", 0),
-                "download_time": download_result.get("download_time", -1),
-                "tcp_ok": tcp_info.get("tcp_ok", False),
-                "http_ok": download_result.get("http_ok", False)
+            return node
+            
+        except Exception as e:
+            log(f"Hysteria2解析失败: {uri[:30]}... -> {e}", "ERROR")
+            return None
+    
+    @staticmethod
+    def parse_tuic(uri):
+        """解析TUIC协议"""
+        try:
+            if "#" in uri:
+                uri = uri.split("#", 1)[0]
+            
+            parsed = urlparse(uri)
+            host = parsed.hostname
+            port = parsed.port or 443
+            
+            uuid = parsed.username
+            password = parsed.password
+            
+            query_params = parse_qs(parsed.query)
+            params = {}
+            for key, value in query_params.items():
+                params[key] = unquote(value[0]) if value else ""
+            
+            node = {
+                "_type": "tuic",
+                "host": host,
+                "port": port,
+                "uuid": uuid,
+                "password": password,
+                "_raw": uri
             }
-            all_results.append(result)
-        
-        # 排序结果：按下载速度从高到低
-        all_results.sort(key=lambda x: (-x["speed"], x["tcp_ms"], x["http_ms"]))
-        
-        # 保存结果
-        self.save_results(all_results)
-        
-        # 统计信息
-        total_time = time.time() - self.start_time
-        
-        # 节点类型统计
-        tcp_only = sum(1 for r in all_results if r["tcp_ok"] and not r["http_ok"])
-        http_only = sum(1 for r in all_results if not r["tcp_ok"] and r["http_ok"])
-        both_ok = sum(1 for r in all_results if r["tcp_ok"] and r["http_ok"])
-        
-        # 显示结果
-        logger.info("=" * 60)
-        logger.info(f"🎉 测试完成！")
-        logger.info(f"📊 总节点数: {len(nodes)}")
-        logger.info(f"✅ 符合保留条件: {len(all_results)}")
-        logger.info(f"⏱️  总耗时: {total_time:.1f}秒")
-        logger.info(f"📈 平均每个节点: {total_time/max(1,len(nodes)):.1f}秒")
-        
-        logger.info(f"📊 节点类型统计:")
-        logger.info(f"   TCP成功+HTTP成功: {both_ok}个")
-        logger.info(f"   TCP成功+HTTP失败: {tcp_only}个") 
-        logger.info(f"   TCP失败+HTTP成功: {http_only}个")
-        
-        # 显示最佳节点
-        if all_results:
-            best = all_results[0]
-            logger.info(f"🏆 最佳节点: {best['node']['server']}")
-            logger.info(f"   TCP状态: {'✅' if best['tcp_ok'] else '❌'}")
-            logger.info(f"   HTTP状态: {'✅' if best['http_ok'] else '❌'}")
-            if best['tcp_ok']:
-                logger.info(f"   TCP延迟: {best['tcp_ms']}ms")
-            if best['http_ok']:
-                logger.info(f"   HTTP延迟: {best['http_ms']}ms")
-            logger.info(f"   下载速度: {best['speed']}Mbps")
-        
-        logger.info(f"💾 结果已保存到 ping.txt 和 detailed_results.txt")
-        
-        # 清理临时文件
+            
+            if "sni" in params:
+                node["sni"] = params["sni"]
+            if "alpn" in params:
+                node["alpn"] = params["alpn"]
+            if "disable_sni" in params:
+                node["disable_sni"] = params["disable_sni"] == "true"
+            if "reduce_rtt" in params:
+                node["reduce_rtt"] = params["reduce_rtt"] == "true"
+            
+            return node
+            
+        except Exception as e:
+            log(f"TUIC解析失败: {uri[:30]}... -> {e}", "ERROR")
+            return None
+    
+    @staticmethod
+    def parse_wireguard(uri):
+        """解析WireGuard协议"""
         try:
-            shutil.rmtree(CONFIG_DIR, ignore_errors=True)
-        except:
-            pass
-
-def main():
-    """主函数"""
-    tester = NodeTester()
-    try:
-        tester.run()
-    except KeyboardInterrupt:
-        logger.info("测试被用户中断")
-    except Exception as e:
-        logger.error(f"测试过程中发生错误: {e}")
-    finally:
-        # 确保清理临时文件
+            if "#" in uri:
+                uri = uri.split("#", 1)[0]
+            
+            parsed = urlparse(uri)
+            if '@' not in parsed.netloc:
+                return None
+                
+            private_key, server_part = parsed.netloc.split('@', 1)
+            if ':' in server_part:
+                server, port = server_part.rsplit(':', 1)
+            else:
+                server = server_part
+                port = "51820"
+                
+            query_params = parse_qs(parsed.query)
+            params = {}
+            for key, value in query_params.items():
+                params[key] = unquote(value[0]) if value else ""
+            
+            node = {
+                "_type": "wireguard",
+                "server": server,
+                "server_port": int(port),
+                "private_key": private_key,
+                "_raw": uri
+            }
+            
+            if "public_key" in params:
+                node["peer_public_key"] = params["public_key"]
+            if "local_address" in params:
+                node["local_address"] = params["local_address"]
+            if "preshared_key" in params:
+                node["preshared_key"] = params["preshared_key"]
+            if "mtu" in params:
+                node["mtu"] = int(params["mtu"])
+            if "reserved" in params:
+                node["reserved"] = params["reserved"]
+            if "dns" in params:
+                node["dns"] = params["dns"]
+            
+            return node
+            
+        except Exception as e:
+            log(f"WireGuard解析失败: {uri[:30]}... -> {e}", "ERROR")
+            return None
+    
+    @staticmethod
+    def parse_vmess(uri):
+        """解析VMess协议（自动修正配置冲突）"""
         try:
-            shutil.rmtree(CONFIG_DIR, ignore_errors=True)
-        except:
-            pass
+            decoded_json = base64.b64decode(uri[8:] + "===").decode('utf-8')
+            config = json.loads(decoded_json)
+            
+            node = {
+                "_type": "vmess",
+                "host": config.get("add", ""),
+                "port": int(config.get("port", 0)),
+                "uuid": config.get("id", ""),
+                "aid": int(config.get("aid", 0)),
+                "_raw": uri
+            }
+            
+            if not node["host"] or not node["port"] or not node["uuid"]:
+                return None
+            
+            net_type = config.get("net", "tcp")
+            path = config.get("path", "")
+            
+            # 自动修正：TCP协议不应该有path
+            if net_type == "tcp" and path:
+                log(f"⚠️ VMess配置修正: TCP协议移除非法的path参数: {path}", "WARN")
+                node["net"] = net_type
+                node["type"] = config.get("type", "none")
+            else:
+                optional_fields = ["net", "type", "tls", "sni", "path", "host", "alpn", "fp", "scy"]
+                for field in optional_fields:
+                    if field in config and config[field]:
+                        node[field] = config[field]
+            
+            if "net" in node and not node.get("type"):
+                node["type"] = node["net"]
+            
+            return node
+            
+        except Exception as e:
+            log(f"VMess解析失败: {uri[:30]}... -> {e}", "ERROR")
+            return None
+    
+    @staticmethod
+    def parse_vless(uri):
+        """解析VLESS协议"""
+        try:
+            parsed = urlparse(uri)
+            if '@' not in parsed.netloc:
+                return None
+                
+            userinfo, hostport = parsed.netloc.split('@', 1)
+            if ':' in hostport:
+                host, port = hostport.rsplit(':', 1)
+            else:
+                host = hostport
+                port = "443"
+            
+            query_params = parse_qs(parsed.query)
+            params = {}
+            for key, value in query_params.items():
+                params[key] = unquote(value[0])
+            
+            node = {
+                "_type": "vless",
+                "host": host,
+                "port": int(port),
+                "uuid": userinfo,
+                "path": unquote(parsed.path),
+                "_raw": uri
+            }
+            
+            node.update(params)
+            return node
+            
+        except Exception as e:
+            log(f"VLESS解析失败: {uri[:30]}... -> {e}", "ERROR")
+            return None
+    
+    @staticmethod
+    def parse_trojan(uri):
+        """解析Trojan协议"""
+        try:
+            parsed = urlparse(uri)
+            if '@' not in parsed.netloc:
+                return None
+                
+            password, hostport = parsed.netloc.split('@', 1)
+            if ':' in hostport:
+                host, port = hostport.rsplit(':', 1)
+            else:
+                host = hostport
+                port = "443"
+            
+            query_params = parse_qs(parsed.query)
+            params = {}
+            for key, value in query_params.items():
+                params[key] = unquote(value[0])
+            
+            node = {
+                "_type": "trojan",
+                "host": host,
+                "port": int(port),
+                "password": password,
+                "path": unquote(parsed.path),
+                "_raw": uri
+            }
+            
+            node.update(params)
+            return node
+            
+        except Exception as e:
+            log(f"Trojan解析失败: {uri[:30]}... -> {e}", "ERROR")
+            return None
+    
+    @staticmethod
+    def parse_http(uri):
+        """解析HTTP/HTTPS代理协议"""
+        try:
+            parsed = urlparse(uri)
+            
+            username = parsed.username
+            password = parsed.password
+            host = parsed.hostname
+            port = parsed.port or (443 if parsed.scheme == "https" else 80)
+            
+            if not host or not port:
+                return None
+            
+            node = {
+                "_type": "http",
+                "host": host,
+                "port": port,
+                "scheme": parsed.scheme,
+                "_raw": uri
+            }
+            
+            if username:
+                node["username"] = unquote(username)
+            if password:
+                node["password"] = unquote(password)
+            
+            query_params = parse_qs(parsed.query)
+            for key, value in query_params.items():
+                node[key] = unquote(value[0]) if value else ""
+            
+            return node
+            
+        except Exception as e:
+            log(f"HTTP代理解析失败: {uri[:30]}... -> {e}", "ERROR")
+            return None
+    
+    @staticmethod
+    def parse_node(raw_line):
+        """统一解析入口"""
+        raw_line = raw_line.strip()
+        if not raw_line:
+            return None
+        
+        if raw_line.startswith("ss://"):
+            return NodeParser.parse_ss(raw_line)
+        elif raw_line.startswith("ssr://"):
+            return NodeParser.parse_ssr(raw_line)
+        elif raw_line.startswith("vmess://"):
+            return NodeParser.parse_vmess(raw_line)
+        elif raw_line.startswith("vless://"):
+            return NodeParser.parse_vless(raw_line)
+        elif raw_line.startswith("trojan://"):
+            return NodeParser.parse_trojan(raw_line)
+        elif raw_line.startswith("hy2://") or raw_line.startswith("hysteria2://"):
+            return NodeParser.parse_hysteria2(raw_line)
+        elif raw_line.startswith("hy://") or raw_line.startswith("hysteria://"):
+            return NodeParser.parse_hysteria(raw_line)
+        elif raw_line.startswith("tuic://"):
+            return NodeParser.parse_tuic(raw_line)
+        elif raw_line.startswith("wireguard://"):
+            return NodeParser.parse_wireguard(raw_line)
+        elif raw_line.startswith("https://") or raw_line.startswith("http://"):
+            return NodeParser.parse_http(raw_line)
+        
+        return None
 
-if __name__ == "__main__":
-    main()
+# ================== Singbox配置生成器 ==================
+class SingboxConfigGenerator:
+    """生成Singbox配置（支持所有协议）"""
+    
+    @staticmethod
+    def generate_outbound(node):
+        """根据节点类型生成outbound配置"""
+        protocol = node["_type"]
+        
+        if protocol == "ss":
+            return {
+                "type": "shadowsocks",
+                "server": node["host"],
+                "server_port": node["port"],
+                "method": node["method"],
+                "password": node["password"]
+            }
+        
+        elif protocol == "ssr":
+            outbound = {
+                "type": "shadowsocksr",
+                "server": node["host"],
+                "server_port": node["port"],
+                "method": node["method"],
+                "password": node["password"],
+                "protocol": node["protocol"],
+                "obfs": node["obfs"]
+            }
+            
+            if "obfs_param" in node:
+                outbound["obfs_param"] = node["obfs_param"]
+            if "protocol_param" in node:
+                outbound["protocol_param"] = node["protocol_param"]
+            
+            return outbound
+        
+        elif protocol == "vmess":
+            outbound = {
+                "type": "vmess",
+                "server": node["host"],
+                "server_port": node["port"],
+                "uuid": node["uuid"],
+                "alter_id": node.get("aid", 0),
+                "security": node.get("scy", "auto")
+            }
+            
+            # 处理传输设置
+            net_type = node.get("net", "tcp")
+            if net_type == "ws":
+                outbound["transport"] = {
+                    "type": "ws",
+                    "path": node.get("path", "/"),
+                    "headers": {
+                        "Host": node.get("host") or node.get("sni", "")
+                    }
+                }
+            elif net_type == "tcp":
+                outbound["transport"] = {"type": "tcp"}
+            elif net_type == "grpc":
+                outbound["transport"] = {
+                    "type": "grpc",
+                    "service_name": node.get("path", "")
+                }
+            elif net_type == "http":
+                outbound["transport"] = {
+                    "type": "http",
+                    "host": [node.get("host") or node.get("sni", "")],
+                    "path": node.get("path", "/")
+                }
+            
+            # 处理TLS
+            if node.get("tls") == "tls":
+                outbound["tls"] = {
+                    "enabled": True,
+                    "server_name": node.get("sni") or node.get("host", "")
+                }
+            
+            return outbound
+        
+        elif protocol == "vless":
+            outbound = {
+                "type": "vless",
+                "server": node["host"],
+                "server_port": node["port"],
+                "uuid": node["uuid"],
+                "flow": node.get("flow", "")
+            }
+            
+            # 处理传输设置
+            net_type = node.get("type", "tcp")
+            if net_type == "ws":
+                outbound["transport"] = {
+                    "type": "ws",
+                    "path": node.get("path", "/"),
+                    "headers": {
+                        "Host": node.get("host") or node.get("sni", "")
+                    }
+                }
+            elif net_type == "grpc":
+                outbound["transport"] = {
+                    "type": "grpc",
+                    "service_name": node.get("path", "")
+                }
+            elif net_type == "h2":
+                outbound["transport"] = {
+                    "type": "http",
+                    "host": [node.get("host") or node.get("sni", "")],
+                    "path": node.get("path", "/")
+                }
+            else:
+                outbound["transport"] = {"type": "tcp"}
+            
+            # 处理TLS
+            if node.get("security") == "tls" or node.get("tls"):
+                outbound["tls"] = {
+                    "enabled": True,
+                    "server_name": node.get("sni") or node.get("host", "")
+                }
+            
+            # 处理REALITY
+            if node.get("security") == "reality":
+                outbound["tls"] = {
+                    "enabled": True,
+                    "server_name": node.get("sni", ""),
+                    "reality": {
+                        "enabled": True,
+                        "public_key": node.get("pbk", ""),
+                        "short_id": node.get("sid", "")
+                    }
+                }
+            
+            return outbound
+        
+        elif protocol == "trojan":
+            outbound = {
+                "type": "trojan",
+                "server": node["host"],
+                "server_port": node["port"],
+                "password": node["password"]
+            }
+            
+            # 处理传输设置
+            net_type = node.get("type", "tcp")
+            if net_type == "ws":
+         
