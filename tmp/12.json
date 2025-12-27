@@ -1,1 +1,0 @@
-{"inbounds": [{"listen": "127.0.0.1", "port": 20012, "protocol": "socks"}], "outbounds": [{"protocol": "trojan", "settings": {"servers": [{"address": "127.0.0.1", "port": 8080, "password": "rcadmr4m-bcz5-isvp-rdkv-yx480fwtsdqy"}]}}]}

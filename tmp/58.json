@@ -1,1 +1,0 @@
-{"inbounds": [{"listen": "127.0.0.1", "port": 20058, "protocol": "socks"}], "outbounds": [{"protocol": "vmess", "settings": {"vnext": [{"address": "183.236.51.38", "port": 49302, "users": [{"id": "418048af-a293-4b99-9b0c-98ca3580dd24", "alterId": 64, "security": "auto"}]}]}}]}
