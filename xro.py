@@ -24,8 +24,8 @@ INPUT_FILE = "all_configs.txt"
 OUTPUT_FILE = "ping.txt"
 
 SOCKS_PORT_BASE = 20000
-TIMEOUT = 6
-MAX_WORKERS = 10
+TIMEOUT = 10
+MAX_WORKERS = 3
 
 TCP_TEST_HOSTS = [
     ("1.1.1.1", 443),
