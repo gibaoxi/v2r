@@ -587,7 +587,7 @@ if __name__ == "__main__":
                        help=f'并发测试数量 (默认: {CONCURRENT_TESTS})')
     parser.add_argument('-t', '--timeout', type=int, default=HTTP_TIMEOUT,
                        help=f'HTTP 测试超时时间 (默认: {HTTP_TIMEOUT})')
-    parser.add_argument('-f', '--file', default='all_configs.txt',
+    parser.add_argument('-f', '--file', default='sub.txt',
                        help='订阅文件路径 (默认: all_configs.txt)')
     
     args = parser.parse_args()
