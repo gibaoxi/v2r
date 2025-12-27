@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import sys
 import json
 import time
 import base64
@@ -7,12 +8,11 @@ import socket
 import threading
 import subprocess
 import requests
-from urllib.parse import unquote
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # ================== 配置 ==================
-XRAY_BIN = "./xray/"          # xray 路径
-ALL_CONFIGS = "all_configs.txt"      # 改成 sub.txt
+XRAY_BIN = "./xray/xray"      # 指向文件夹里的可执行文件
+ALL_CONFIGS = "sub.txt"       # 节点文件
 GOOD_FILE = "ping.txt"
 BAD_FILE = "bad.txt"
 
@@ -28,6 +28,19 @@ HTTP_TEST_URLS = [
 ]
 
 lock = threading.Lock()
+
+# ================== Xray 验证 ==================
+if not os.path.exists(XRAY_BIN):
+    print(f"[ERROR] Xray 可执行文件不存在：{XRAY_BIN}")
+    print("请检查 xray 文件夹下是否有可执行文件，并确认路径正确")
+    sys.exit(1)
+
+if not os.access(XRAY_BIN, os.X_OK):
+    print(f"[ERROR] Xray 文件没有执行权限：{XRAY_BIN}")
+    print("请运行: chmod +x ./xray/xray")
+    sys.exit(1)
+
+print(f"[INFO] Xray 可执行文件验证通过：{XRAY_BIN}")
 
 # ================== 工具 ==================
 def log(msg):
@@ -171,9 +184,6 @@ def test_node(n, idx):
 
 # ================== 主流程 ==================
 def main():
-    if not os.path.exists(XRAY_BIN):
-        log("ERROR: xray binary not found")
-        return
     with open(ALL_CONFIGS) as f:
         raws = f.readlines()
     nodes = [parse_node(r) for r in raws]
